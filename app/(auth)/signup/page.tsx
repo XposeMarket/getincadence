@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
@@ -15,7 +15,12 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  // Get redirect URL and plan from query params
+  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const selectedPlan = searchParams.get('plan')
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,11 +81,17 @@ export default function SignupPage() {
           return
         }
 
-        // Redirect to dashboard
-        router.push('/dashboard')
+        // Redirect to the original destination or dashboard
+        // If they came from pricing with a plan, go back there to complete checkout
+        router.push(redirectTo)
         router.refresh()
       } else {
         // Email confirmation required - redirect to verification page
+        // Store redirect info in sessionStorage for after verification
+        if (selectedPlan) {
+          sessionStorage.setItem('pendingPlan', selectedPlan)
+          sessionStorage.setItem('pendingRedirect', redirectTo)
+        }
         router.push('/verify-email')
       }
     } catch (err) {
@@ -90,10 +101,21 @@ export default function SignupPage() {
     }
   }
 
+  // Build login link with redirect params
+  const loginHref = selectedPlan 
+    ? `/login?redirect=${encodeURIComponent(redirectTo)}&plan=${selectedPlan}`
+    : '/login'
+
   return (
     <div className="animate-fade-in">
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Create your account</h2>
       <p className="text-gray-600 mb-8">Start managing your relationships with Cadence</p>
+
+      {selectedPlan && (
+        <div className="mb-6 p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700">
+          Create an account to start your <span className="font-semibold capitalize">{selectedPlan}</span> plan trial
+        </div>
+      )}
 
       <form onSubmit={handleSignup} className="space-y-5">
         {error && (
@@ -196,7 +218,7 @@ export default function SignupPage() {
 
       <p className="mt-6 text-center text-sm text-gray-600">
         Already have an account?{' '}
-        <Link href="/login" className="font-medium text-primary-600 hover:text-primary-500">
+        <Link href={loginHref} className="font-medium text-primary-600 hover:text-primary-500">
           Sign in
         </Link>
       </p>

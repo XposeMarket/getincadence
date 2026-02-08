@@ -1,15 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { Check } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Plan {
   id: string
   name: string
   badge: string
   price: number
-  priceId: string // Stripe Price ID
   period: string
   users: string
   description: string
@@ -24,7 +24,6 @@ const plans: Plan[] = [
     name: 'Solo',
     badge: 'Free forever',
     price: 0,
-    priceId: '', // No Stripe ID for free plan
     period: 'forever',
     users: '1 user',
     description: 'Perfect for solopreneurs and freelancers.',
@@ -42,7 +41,6 @@ const plans: Plan[] = [
     name: 'Starter',
     badge: 'Small teams',
     price: 29,
-    priceId: 'price_starter_monthly', // Replace with actual Stripe Price ID
     period: 'per month',
     users: 'Up to 3 users',
     description: 'Great for small teams just getting started.',
@@ -58,7 +56,6 @@ const plans: Plan[] = [
     name: 'Team',
     badge: 'Most popular',
     price: 59,
-    priceId: 'price_team_monthly', // Replace with actual Stripe Price ID
     period: 'per month',
     users: 'Up to 8 users',
     description: 'Perfect for growing teams that need consistency.',
@@ -77,7 +74,6 @@ const plans: Plan[] = [
     name: 'Growth',
     badge: 'Scale up',
     price: 99,
-    priceId: 'price_growth_monthly', // Replace with actual Stripe Price ID
     period: 'per month',
     users: 'Up to 12 users',
     description: 'For teams that want deeper visibility and control.',
@@ -105,7 +101,7 @@ const faqs = [
   },
   {
     question: 'Do you offer annual billing?',
-    answer: 'Yes, we offer annual billing with a 20% discount. Contact us for details.',
+    answer: 'Yes, we offer annual billing with a 20% discount. Select "Annual" above to see discounted prices.',
   },
   {
     question: 'Is there a free trial for paid plans?',
@@ -123,7 +119,51 @@ const faqs = [
 
 export default function PricingPage() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
   const discount = billingPeriod === 'annual' ? 0.8 : 1 // 20% discount for annual
+
+  const handleSelectPlan = async (planId: string) => {
+    // Free plan goes to login/signup
+    if (planId === 'solo') {
+      router.push('/login')
+      return
+    }
+
+    setLoadingPlan(planId)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          plan: planId, 
+          period: billingPeriod 
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        // If unauthorized, redirect to login
+        if (res.status === 401) {
+          router.push(`/login?redirect=/pricing&plan=${planId}`)
+          return
+        }
+        throw new Error(data.error || 'Failed to create checkout session')
+      }
+
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (err) {
+      console.error('Checkout error:', err)
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      setLoadingPlan(null)
+    }
+  }
 
   return (
     <>
@@ -163,6 +203,13 @@ export default function PricingPage() {
               </span>
             </button>
           </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm max-w-md mx-auto">
+              {error}
+            </div>
+          )}
         </div>
       </section>
 
@@ -215,16 +262,26 @@ export default function PricingPage() {
                   ))}
                 </div>
 
-                <Link
-                  href={plan.price === 0 ? '/login' : `/api/checkout?plan=${plan.id}&period=${billingPeriod}`}
-                  className={`block w-full text-center mt-5 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
+                <button
+                  onClick={() => handleSelectPlan(plan.id)}
+                  disabled={loadingPlan !== null}
+                  className={`w-full text-center mt-5 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors disabled:opacity-70 disabled:cursor-not-allowed ${
                     plan.highlighted
                       ? 'bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/25'
                       : 'bg-gray-900 hover:bg-gray-800 text-white'
                   }`}
                 >
-                  {plan.price === 0 ? 'Start free' : 'Start 14-day trial'}
-                </Link>
+                  {loadingPlan === plan.id ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 size={16} className="animate-spin" />
+                      Processing...
+                    </span>
+                  ) : plan.price === 0 ? (
+                    'Start free'
+                  ) : (
+                    'Start 14-day trial'
+                  )}
+                </button>
 
                 {plan.note && (
                   <p className="text-xs text-gray-400 text-center mt-2">{plan.note}</p>

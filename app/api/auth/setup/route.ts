@@ -71,6 +71,23 @@ export async function POST(request: NextRequest) {
 
     console.log('User profile created successfully')
 
+    // Create default subscription (Solo plan - free)
+    console.log('Creating default subscription...')
+    const { error: subError } = await supabase
+      .from('subscriptions')
+      .insert({
+        org_id: org.id,
+        plan: 'solo',
+        status: 'active',
+      })
+
+    if (subError) {
+      console.error('Subscription creation error:', subError)
+      // Non-critical - continue anyway, subscription can be created later
+    } else {
+      console.log('Default subscription created successfully')
+    }
+
     // Create default pipeline for the org
     console.log('Creating default pipeline...')
     const { data: pipeline, error: pipelineError } = await supabase

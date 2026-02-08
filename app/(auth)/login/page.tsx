@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
@@ -13,7 +13,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  // Get redirect URL from query params
+  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const selectedPlan = searchParams.get('plan')
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,7 +36,8 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    // Redirect to the original page or dashboard
+    router.push(redirectTo)
     router.refresh()
   }
 
@@ -39,10 +45,21 @@ export default function LoginPage() {
     router.push('/dashboard')
   }
 
+  // Build signup link with redirect params
+  const signupHref = selectedPlan 
+    ? `/signup?redirect=${encodeURIComponent(redirectTo)}&plan=${selectedPlan}`
+    : '/signup'
+
   return (
     <div className="animate-fade-in">
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h2>
       <p className="text-gray-600 mb-8">Sign in to your Cadence account</p>
+
+      {selectedPlan && (
+        <div className="mb-6 p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700">
+          Sign in to continue with the <span className="font-semibold capitalize">{selectedPlan}</span> plan
+        </div>
+      )}
 
       <form onSubmit={handleLogin} className="space-y-5">
         {error && (
@@ -117,7 +134,7 @@ export default function LoginPage() {
 
       <p className="mt-6 text-center text-sm text-gray-600">
         Don't have an account?{' '}
-        <Link href="/signup" className="font-medium text-primary-600 hover:text-primary-500">
+        <Link href={signupHref} className="font-medium text-primary-600 hover:text-primary-500">
           Create one
         </Link>
       </p>
