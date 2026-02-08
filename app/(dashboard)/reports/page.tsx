@@ -10,6 +10,9 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistanceToNow, subDays, format } from 'date-fns'
+import { PlanType } from '@/lib/subscription/plans'
+import { canAccessSection, getSectionsForTier, SectionKey as TierSectionKey } from '@/lib/reports/tier-permissions'
+import ReportSection from '@/components/reports/ReportSection'
 
 type TimeRange = '7d' | '30d' | '90d' | 'all'
 
@@ -145,6 +148,9 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [orgId, setOrgId] = useState<string | null>(null)
   
+  // Subscription tier
+  const [userTier, setUserTier] = useState<PlanType>('solo')
+  
   // Stats
   const [stats, setStats] = useState({
     totalRevenue: 0,
@@ -209,6 +215,20 @@ export default function ReportsPage() {
     const init = async () => {
       const id = await getCurrentUserOrgId()
       setOrgId(id)
+      
+      // Fetch subscription tier
+      try {
+        const res = await fetch('/api/subscription')
+        if (res.ok) {
+          const data = await res.json()
+          setUserTier(data.plan as PlanType)
+          // Also filter print sections to only show accessible ones
+          const accessibleSections = getSectionsForTier(data.plan as PlanType)
+          setSelectedSections(new Set(accessibleSections))
+        }
+      } catch (e) {
+        console.error('Failed to fetch subscription:', e)
+      }
     }
     init()
   }, [])
@@ -768,9 +788,13 @@ export default function ReportsPage() {
     setActivePreset('')
   }
 
+  // Get sections accessible for current tier
+  const accessibleSections = getSectionsForTier(userTier)
+
   const toggleAll = (selectAll: boolean) => {
     if (selectAll) {
-      setSelectedSections(new Set(REPORT_SECTIONS.map(s => s.key)))
+      // Only select sections user has access to
+      setSelectedSections(new Set(accessibleSections))
       setActivePreset('Full Report')
     } else {
       setSelectedSections(new Set())
@@ -779,7 +803,9 @@ export default function ReportsPage() {
   }
 
   const applyPreset = (preset: PrintPreset) => {
-    setSelectedSections(new Set(preset.sections))
+    // Only include sections user has access to
+    const accessiblePresetSections = preset.sections.filter(s => accessibleSections.includes(s))
+    setSelectedSections(new Set(accessiblePresetSections))
     setActivePreset(preset.name)
   }
 
@@ -890,49 +916,66 @@ export default function ReportsPage() {
       {/* Pipeline & Deals by Owner - Responsive grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Pipeline Overview */}
-        <div data-report-section="pipeline" className="card p-4 sm:p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Pipeline Overview</h2>
-          {pipelineData.length === 0 ? (
-            <p className="text-gray-500 text-sm">No pipeline data available. Create some deals to see stats here.</p>
-          ) : (
-            <div className="space-y-3">
-              {pipelineData.map((stage) => {
-                const maxValue = Math.max(...pipelineData.map(s => s.value), 1)
-                const width = (stage.value / maxValue) * 100
-                return (
-                  <div key={stage.stage}>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-                        <span className="text-gray-700 truncate">{stage.stage}</span>
-                        <span className="text-gray-400 flex-shrink-0">({stage.count})</span>
+        <ReportSection 
+          sectionKey="pipeline" 
+          userTier={userTier}
+          summaryData={pipelineData.length > 0 ? [
+            { label: 'stages', value: pipelineData.length },
+            { label: 'total deals', value: pipelineData.reduce((sum, s) => sum + s.count, 0) },
+          ] : undefined}
+        >
+          <div className="card p-4 sm:p-6">
+            <h2 className="font-semibold text-gray-900 mb-4">Pipeline Overview</h2>
+            {pipelineData.length === 0 ? (
+              <p className="text-gray-500 text-sm">No pipeline data available. Create some deals to see stats here.</p>
+            ) : (
+              <div className="space-y-3">
+                {pipelineData.map((stage) => {
+                  const maxValue = Math.max(...pipelineData.map(s => s.value), 1)
+                  const width = (stage.value / maxValue) * 100
+                  return (
+                    <div key={stage.stage}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
+                          <span className="text-gray-700 truncate">{stage.stage}</span>
+                          <span className="text-gray-400 flex-shrink-0">({stage.count})</span>
+                        </div>
+                        <span className="font-medium text-gray-900 flex-shrink-0 ml-2">${stage.value.toLocaleString()}</span>
                       </div>
-                      <span className="font-medium text-gray-900 flex-shrink-0 ml-2">${stage.value.toLocaleString()}</span>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${width}%`, backgroundColor: stage.color }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${width}%`, backgroundColor: stage.color }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </ReportSection>
 
         {/* Deals by Owner */}
-        <div data-report-section="dealsByOwner" className="card p-4 sm:p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Deals by Owner</h2>
-          {dealsByOwner.length === 0 ? (
-            <p className="text-gray-500 text-sm">No deals yet. Create deals to see assignment stats.</p>
-          ) : (
-            <div className="space-y-3">
-              {dealsByOwner.map((item) => {
-                const maxValue = Math.max(...dealsByOwner.map(o => o.value), 1)
-                const width = (item.value / maxValue) * 100
-                return (
+        <ReportSection 
+          sectionKey="dealsByOwner" 
+          userTier={userTier}
+          summaryData={dealsByOwner.length > 0 ? [
+            { label: 'owners', value: dealsByOwner.length },
+            { label: 'total value', value: `$${dealsByOwner.reduce((sum, o) => sum + o.value, 0).toLocaleString()}` },
+          ] : undefined}
+        >
+          <div className="card p-4 sm:p-6">
+            <h2 className="font-semibold text-gray-900 mb-4">Deals by Owner</h2>
+            {dealsByOwner.length === 0 ? (
+              <p className="text-gray-500 text-sm">No deals yet. Create deals to see assignment stats.</p>
+            ) : (
+              <div className="space-y-3">
+                {dealsByOwner.map((item) => {
+                  const maxValue = Math.max(...dealsByOwner.map(o => o.value), 1)
+                  const width = (item.value / maxValue) * 100
+                  return (
                   <div key={item.ownerId || 'unassigned'}>
                     <div className="flex items-center justify-between text-sm mb-1">
                       <div className="flex items-center gap-2 min-w-0">
@@ -955,7 +998,8 @@ export default function ReportsPage() {
               })}
             </div>
           )}
-        </div>
+          </div>
+        </ReportSection>
       </div>
 
       {/* Idle Deals Section - Responsive grid */}
@@ -1217,7 +1261,15 @@ export default function ReportsPage() {
       </div>
 
       {/* Win Rate & Metrics - Responsive grid */}
-      <div data-report-section="winMetrics" className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+      <ReportSection
+        sectionKey="winMetrics"
+        userTier={userTier}
+        summaryData={[
+          { label: 'win rate', value: `${winRate}%` },
+          { label: 'avg deal', value: `$${avgDealSize.toLocaleString()}` },
+        ]}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6"
+      >
         <div className="card p-4 sm:p-6">
           <h3 className="text-sm font-medium text-gray-500 mb-2">Win Rate</h3>
           <div className="flex items-end gap-2">
@@ -1251,10 +1303,18 @@ export default function ReportsPage() {
           </div>
           <p className="text-xs text-gray-500 mt-2">From created to won</p>
         </div>
-      </div>
+      </ReportSection>
 
       {/* ========== DEALS LOST SECTION ========== */}
-      <div data-report-section="dealsLost" className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <ReportSection
+        sectionKey="dealsLost"
+        userTier={userTier}
+        summaryData={[
+          { label: 'lost deals', value: lostDealsCount },
+          { label: 'lost value', value: `$${lostDealsValue.toLocaleString()}` },
+        ]}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6"
+      >
         {/* Loss Reason Breakdown */}
         <div className="card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
@@ -1353,10 +1413,17 @@ export default function ReportsPage() {
             </div>
           )}
         </div>
-      </div>
+      </ReportSection>
 
       {/* ========== AVG TIME IN STAGE SECTION ========== */}
-      <div data-report-section="stageTimings" className="card p-4 sm:p-6">
+      <ReportSection
+        sectionKey="stageTimings"
+        userTier={userTier}
+        summaryData={[
+          { label: 'stages tracked', value: stageTimings.length },
+        ]}
+      >
+        <div className="card p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-1">
           <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
             <Clock size={16} className="text-indigo-600" />
@@ -1418,15 +1485,24 @@ export default function ReportsPage() {
             })()}
           </div>
         )}
-      </div>
+        </div>
+      </ReportSection>
 
       {/* ========== CONVERSION FUNNEL (Step-Ladder) ========== */}
-      <div data-report-section="funnel" className="card p-4 sm:p-6">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
-            <BarChart3 size={16} className="text-teal-600" />
-          </div>
-          <div>
+      <ReportSection
+        sectionKey="funnel"
+        userTier={userTier}
+        summaryData={[
+          { label: 'stages', value: funnelData.length },
+          { label: 'total deals', value: funnelData[0]?.count || 0 },
+        ]}
+      >
+        <div className="card p-4 sm:p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
+              <BarChart3 size={16} className="text-teal-600" />
+            </div>
+            <div>
             <h2 className="font-semibold text-gray-900">Conversion Funnel</h2>
             <p className="text-xs text-gray-500">Where do deals stop moving?</p>
           </div>
@@ -1511,28 +1587,36 @@ export default function ReportsPage() {
             </div>
           )
         })()}
-      </div>
+        </div>
+      </ReportSection>
 
       {/* ========== SALES VELOCITY + FORECAST ========== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Sales Velocity */}
-        <div data-report-section="velocity" className="card p-4 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <TrendingUp size={16} className="text-emerald-600" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-gray-900">Sales Velocity</h2>
-              <p className="text-xs text-gray-500">Is your pipeline producing revenue?</p>
-            </div>
-          </div>
-          
-          {stats.dealsWon === 0 ? (
-            /* Coaching mode - no closed deals yet */
-            <div className="text-center py-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
-                <TrendingUp size={24} className="text-gray-400" />
+        <ReportSection
+          sectionKey="velocity"
+          userTier={userTier}
+          summaryData={[
+            { label: 'velocity', value: `$${salesVelocity.toLocaleString()}/day` },
+          ]}
+        >
+          <div className="card p-4 sm:p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <TrendingUp size={16} className="text-emerald-600" />
               </div>
+              <div>
+                <h2 className="font-semibold text-gray-900">Sales Velocity</h2>
+                <p className="text-xs text-gray-500">Is your pipeline producing revenue?</p>
+              </div>
+            </div>
+            
+            {stats.dealsWon === 0 ? (
+              /* Coaching mode - no closed deals yet */
+              <div className="text-center py-6">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                  <TrendingUp size={24} className="text-gray-400" />
+                </div>
               <p className="text-gray-900 font-medium">Sales velocity can't be calculated yet</p>
               <p className="text-sm text-gray-500 mt-1">Close at least one deal to unlock this metric.</p>
               <p className="text-xs text-gray-400 mt-4">
@@ -1572,54 +1656,63 @@ export default function ReportsPage() {
               </div>
             </>
           )}
-        </div>
+          </div>
+        </ReportSection>
 
         {/* Forecast Pipeline */}
-        <div data-report-section="forecast" className="card p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                <DollarSign size={16} className="text-amber-600" />
+        <ReportSection
+          sectionKey="forecast"
+          userTier={userTier}
+          summaryData={[
+            { label: 'forecast', value: `$${totalForecast.toLocaleString()}` },
+            { label: 'open deals', value: forecastData.reduce((sum, s) => sum + s.count, 0) },
+          ]}
+        >
+          <div className="card p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <DollarSign size={16} className="text-amber-600" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-gray-900">Forecast Pipeline</h2>
+                  <p className="text-xs text-gray-500">What's likely to close?</p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-semibold text-gray-900">Forecast Pipeline</h2>
-                <p className="text-xs text-gray-500">What's likely to close?</p>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-gray-900">${totalForecast.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">Expected revenue <span className="text-gray-400">(estimate)</span></p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold text-gray-900">${totalForecast.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">Expected revenue <span className="text-gray-400">(estimate)</span></p>
-            </div>
-          </div>
-          {forecastData.length === 0 ? (
-            <div className="text-center py-4">
-              <p className="text-gray-500 text-sm">No open deals to forecast.</p>
-              <p className="text-xs text-gray-400 mt-1">Add deals to your pipeline to see revenue projections.</p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-3">
-                {forecastData.map((stage) => {
-                  const maxValue = Math.max(...forecastData.map(s => s.rawValue), 1)
-                  const rawWidth = (stage.rawValue / maxValue) * 100
-                  const weightedWidth = (stage.weightedValue / maxValue) * 100
-                  return (
-                    <div key={stage.stage}>
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-                          <span className="text-gray-700 truncate">{stage.stage}</span>
-                          <span className="text-gray-400 text-xs">({stage.count})</span>
+            {forecastData.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-gray-500 text-sm">No open deals to forecast.</p>
+                <p className="text-xs text-gray-400 mt-1">Add deals to your pipeline to see revenue projections.</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {forecastData.map((stage) => {
+                    const maxValue = Math.max(...forecastData.map(s => s.rawValue), 1)
+                    const rawWidth = (stage.rawValue / maxValue) * 100
+                    const weightedWidth = (stage.weightedValue / maxValue) * 100
+                    return (
+                      <div key={stage.stage}>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
+                            <span className="text-gray-700 truncate">{stage.stage}</span>
+                            <span className="text-gray-400 text-xs">({stage.count})</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                            <span className="font-medium text-gray-900">${stage.weightedValue.toLocaleString()}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                          <span className="font-medium text-gray-900">${stage.weightedValue.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
-                        {/* Raw value (light) */}
-                        <div
-                          className="h-full rounded-full absolute top-0 left-0 opacity-25"
-                          style={{ width: `${rawWidth}%`, backgroundColor: stage.color }}
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
+                          {/* Raw value (light) */}
+                          <div
+                            className="h-full rounded-full absolute top-0 left-0 opacity-25"
+                            style={{ width: `${rawWidth}%`, backgroundColor: stage.color }}
                         />
                         {/* Weighted value (solid) */}
                         <div
@@ -1638,7 +1731,8 @@ export default function ReportsPage() {
               </p>
             </>
           )}
-        </div>
+          </div>
+        </ReportSection>
       </div>
 
       {/* ========== PRINT/EXPORT MODAL ========== */}
@@ -1710,34 +1804,51 @@ export default function ReportsPage() {
                 </div>
               </div>
               <div className="space-y-1">
-                {REPORT_SECTIONS.map((section) => (
-                  <label 
-                    key={section.key}
-                    className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${
-                      selectedSections.has(section.key) ? 'bg-gray-50' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSections.has(section.key)}
-                      onChange={() => toggleSection(section.key)}
-                      className="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 cursor-pointer"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${selectedSections.has(section.key) ? 'text-gray-900' : 'text-gray-500'}`}>
-                        {section.label}
-                      </p>
-                      <p className="text-xs text-gray-400">{section.description}</p>
-                    </div>
-                  </label>
-                ))}
+                {REPORT_SECTIONS.map((section) => {
+                  const isAccessible = accessibleSections.includes(section.key as TierSectionKey)
+                  return (
+                    <label 
+                      key={section.key}
+                      className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
+                        !isAccessible 
+                          ? 'opacity-50 cursor-not-allowed bg-gray-50' 
+                          : selectedSections.has(section.key) 
+                            ? 'bg-gray-50 cursor-pointer' 
+                            : 'hover:bg-gray-50 cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedSections.has(section.key)}
+                        onChange={() => isAccessible && toggleSection(section.key)}
+                        disabled={!isAccessible}
+                        className="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={`text-sm font-medium ${
+                            !isAccessible ? 'text-gray-400' : selectedSections.has(section.key) ? 'text-gray-900' : 'text-gray-500'
+                          }`}>
+                            {section.label}
+                          </p>
+                          {!isAccessible && (
+                            <span className="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-500 rounded">
+                              Upgrade
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400">{section.description}</p>
+                      </div>
+                    </label>
+                  )
+                })}
               </div>
             </div>
 
             {/* Footer */}
             <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
               <p className="text-sm text-gray-500">
-                {selectedSections.size} of {REPORT_SECTIONS.length} sections
+                {selectedSections.size} of {accessibleSections.length} sections
               </p>
               <div className="flex items-center gap-2">
                 <button
