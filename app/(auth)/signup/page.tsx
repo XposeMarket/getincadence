@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
-export default function SignupPage() {
+function SignupForm() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -223,5 +223,25 @@ export default function SignupPage() {
         </Link>
       </p>
     </div>
+  )
+}
+
+function SignupFormFallback() {
+  return (
+    <div className="animate-fade-in">
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Create your account</h2>
+      <p className="text-gray-600 mb-8">Start managing your relationships with Cadence</p>
+      <div className="flex items-center justify-center py-12">
+        <Loader2 size={24} className="animate-spin text-primary-500" />
+      </div>
+    </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupFormFallback />}>
+      <SignupForm />
+    </Suspense>
   )
 }
