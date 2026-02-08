@@ -45,7 +45,7 @@ interface Deal {
   id: string
   name: string
   value: number
-  pipeline_stages: { name: string; color: string }
+  pipeline_stages: { name: string; color: string } | null
 }
 
 interface Task {
