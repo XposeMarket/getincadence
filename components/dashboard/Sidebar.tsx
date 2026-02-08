@@ -13,9 +13,12 @@ import {
   Zap,
   BarChart3,
   CalendarDays,
-  X
+  X,
+  MessageSquarePlus,
+  Lock
 } from 'lucide-react'
 import clsx from 'clsx'
+import { getPermissions, UserRole } from '@/lib/permissions'
 
 interface SidebarProps {
   user: {
@@ -32,6 +35,7 @@ interface SidebarProps {
   onClose?: () => void
 }
 
+// Navigation items with optional admin-only flag
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Planner', href: '/planner', icon: CalendarDays },
@@ -39,21 +43,39 @@ const navigation = [
   { name: 'Companies', href: '/companies', icon: Building2 },
   { name: 'Deals', href: '/deals', icon: Handshake },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { name: 'Reports', href: '/reports', icon: BarChart3 },
+  { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true },
 ]
 
 const secondaryNav = [
-  { name: 'Automations', href: '/automations', icon: Zap },
+  { name: 'Automations', href: '/automations', icon: Zap, adminOnly: true },
+  { name: 'Feedback', href: '/feedback', icon: MessageSquarePlus },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
 export default function Sidebar({ user, isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
+  const permissions = getPermissions(user.role as UserRole)
 
   const handleLinkClick = () => {
     // Close mobile sidebar when a link is clicked
     if (onClose) onClose()
   }
+
+  // Filter navigation based on permissions
+  const filteredNavigation = navigation.filter(item => {
+    if (item.adminOnly) {
+      if (item.href === '/reports') return permissions.canAccessReports
+      if (item.href === '/automations') return permissions.canAccessAutomations
+    }
+    return true
+  })
+
+  const filteredSecondaryNav = secondaryNav.filter(item => {
+    if (item.adminOnly) {
+      if (item.href === '/automations') return permissions.canAccessAutomations
+    }
+    return true
+  })
 
   const sidebarContent = (
     <>
@@ -82,7 +104,7 @@ export default function Sidebar({ user, isOpen = true, onClose }: SidebarProps) 
 
       {/* Primary navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navigation.map((item) => {
+        {filteredNavigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
           return (
             <Link
@@ -106,7 +128,7 @@ export default function Sidebar({ user, isOpen = true, onClose }: SidebarProps) 
           <p className="px-3 text-xs text-gray-500 uppercase tracking-wider">Settings</p>
         </div>
 
-        {secondaryNav.map((item) => {
+        {filteredSecondaryNav.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
           return (
             <Link

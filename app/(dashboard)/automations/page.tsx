@@ -6,6 +6,8 @@ import { getCurrentUserOrgId } from '@/lib/org-helpers'
 import { Zap, Play, Pause, Clock, CheckSquare, UserPlus, Handshake, TrendingUp, Trophy, XCircle, AlertCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import AccessDenied from '@/components/shared/AccessDenied'
+import { getPermissions, UserRole } from '@/lib/permissions'
 
 interface AutomationLog {
   id: string
@@ -118,12 +120,28 @@ const AUTOMATION_TYPE_NAMES: Record<string, string> = {
 export default function AutomationsPage() {
   const [logs, setLogs] = useState<AutomationLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [checkingPermissions, setCheckingPermissions] = useState(true)
+  const [userRole, setUserRole] = useState<UserRole>('member')
   const [automations] = useState<AutomationRule[]>(BUILT_IN_AUTOMATIONS)
   const [orgId, setOrgId] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
     const initOrg = async () => {
+      // Check user role for permissions
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        if (profile?.role) {
+          setUserRole(profile.role as UserRole)
+        }
+      }
+      setCheckingPermissions(false)
+      
       const id = await getCurrentUserOrgId()
       setOrgId(id)
     }
@@ -158,6 +176,27 @@ export default function AutomationsPage() {
   const activeCount = automations.filter(a => a.isActive).length
   const totalRuns = logs.length
   const successfulRuns = logs.filter(l => l.status === 'success').length
+  
+  // Check permissions
+  const permissions = getPermissions(userRole)
+  
+  if (checkingPermissions) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+  
+  if (!permissions.canAccessAutomations) {
+    return (
+      <AccessDenied 
+        title="Automations Access Restricted"
+        message="Automations are only available to administrators. Contact your admin to request access."
+        feature="Automations"
+      />
+    )
+  }
 
   return (
     <div className="space-y-6">

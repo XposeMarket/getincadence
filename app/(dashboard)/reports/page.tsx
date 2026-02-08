@@ -14,6 +14,8 @@ import { PlanType } from '@/lib/subscription/plans'
 import { canAccessSection, getSectionsForTier, SectionKey as TierSectionKey } from '@/lib/reports/tier-permissions'
 import ReportSection from '@/components/reports/ReportSection'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import AccessDenied from '@/components/shared/AccessDenied'
+import { getPermissions, UserRole } from '@/lib/permissions'
 
 type TimeRange = '7d' | '30d' | '90d' | 'all'
 
@@ -147,10 +149,13 @@ const PRINT_PRESETS: PrintPreset[] = [
 export default function ReportsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('30d')
   const [loading, setLoading] = useState(true)
+  const [checkingPermissions, setCheckingPermissions] = useState(true)
+  const [userRole, setUserRole] = useState<UserRole>('member')
   const [orgId, setOrgId] = useState<string | null>(null)
   
   // Subscription tier
   const [userTier, setUserTier] = useState<PlanType>('solo')
+  const supabaseAuth = createClient()
   
   // Stats
   const [stats, setStats] = useState({
@@ -214,6 +219,20 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const init = async () => {
+      // Check user role for permissions
+      const { data: { user } } = await supabaseAuth.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabaseAuth
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        if (profile?.role) {
+          setUserRole(profile.role as UserRole)
+        }
+      }
+      setCheckingPermissions(false)
+      
       const id = await getCurrentUserOrgId()
       setOrgId(id)
       
@@ -836,6 +855,27 @@ export default function ReportsPage() {
         el.style.display = ''
       })
     }, 200)
+  }
+
+  // Check permissions
+  const permissions = getPermissions(userRole)
+  
+  if (checkingPermissions) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+  
+  if (!permissions.canAccessReports) {
+    return (
+      <AccessDenied 
+        title="Reports Access Restricted"
+        message="Reports are only available to administrators. Contact your admin to request access."
+        feature="Reports"
+      />
+    )
   }
 
   if (loading) {

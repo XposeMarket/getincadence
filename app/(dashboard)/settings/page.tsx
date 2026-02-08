@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, Building2, Users, CreditCard, Bell, Shield, Palette, Check, Loader2, AlertCircle, Lock, ArrowUpRight, Crown } from 'lucide-react'
+import { User, Building2, Users, CreditCard, Bell, Shield, Palette, Check, Loader2, AlertCircle, Lock, ArrowUpRight, Crown, X, Trash2, ShieldCheck, Eye } from 'lucide-react'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import { getPermissions, UserRole } from '@/lib/permissions'
 
 type SettingsTab = 'profile' | 'organization' | 'team' | 'billing' | 'notifications' | 'security' | 'appearance'
 type AccentColor = '#E91E8C' | '#3B82F6' | '#10B981' | '#F59E0B' | '#8B5CF6'
@@ -26,16 +27,53 @@ interface SubscriptionInfo {
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
+  const [userRole, setUserRole] = useState<UserRole>('member')
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
-  const tabs = [
+  useEffect(() => {
+    const checkRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        if (profile?.role) {
+          setUserRole(profile.role as UserRole)
+        }
+      }
+      setLoading(false)
+    }
+    checkRole()
+  }, [])
+
+  const permissions = getPermissions(userRole)
+
+  const allTabs = [
     { id: 'profile' as const, label: 'Profile', icon: User },
     { id: 'organization' as const, label: 'Organization', icon: Building2 },
     { id: 'team' as const, label: 'Team Members', icon: Users },
-    { id: 'billing' as const, label: 'Billing', icon: CreditCard },
+    { id: 'billing' as const, label: 'Billing', icon: CreditCard, adminOnly: true },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
     { id: 'security' as const, label: 'Security', icon: Shield },
     { id: 'appearance' as const, label: 'Appearance', icon: Palette },
   ]
+
+  // Filter tabs based on permissions
+  const tabs = allTabs.filter(tab => {
+    if (tab.adminOnly && !permissions.canAccessBilling) return false
+    return true
+  })
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -69,7 +107,7 @@ export default function SettingsPage() {
         {/* Content */}
         <div className="flex-1 min-w-0">
           {activeTab === 'profile' && <ProfileSettings />}
-          {activeTab === 'organization' && <OrganizationSettings />}
+          {activeTab === 'organization' && <OrganizationSettings canEdit={permissions.canEditOrganization} />}
           {activeTab === 'team' && <TeamSettings />}
           {activeTab === 'billing' && <BillingSettings />}
           {activeTab === 'notifications' && <NotificationSettings />}
@@ -277,7 +315,7 @@ function ProfileSettings() {
   )
 }
 
-function OrganizationSettings() {
+function OrganizationSettings({ canEdit = true }: { canEdit?: boolean }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -379,14 +417,42 @@ function OrganizationSettings() {
     )
   }
 
+  // Industry options for display
+  const industryOptions: Record<string, string> = {
+    agency: 'Agency / Creative Services',
+    consulting: 'Consulting / Professional Services',
+    recruiting: 'Recruiting / Staffing',
+    technology: 'Technology / Software',
+    real_estate: 'Real Estate',
+    healthcare: 'Healthcare',
+    finance: 'Finance / Insurance',
+    manufacturing: 'Manufacturing',
+    retail: 'Retail / E-commerce',
+    education: 'Education',
+    nonprofit: 'Non-Profit',
+    other: 'Other',
+  }
+
   return (
     <div className="card p-6 space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Organization Settings</h2>
-        <p className="text-sm text-gray-500">Manage your organization details</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Organization Settings</h2>
+            <p className="text-sm text-gray-500">
+              {canEdit ? 'Manage your organization details' : 'View your organization details'}
+            </p>
+          </div>
+          {!canEdit && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+              <Eye size={16} className="text-amber-600" />
+              <span className="text-sm text-amber-700 font-medium">View Only</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {error && (
+      {error && canEdit && (
         <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
           <AlertCircle size={16} />
           {error}
@@ -401,54 +467,73 @@ function OrganizationSettings() {
       )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Organization Name *</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Organization Name {canEdit && '*'}</label>
         <input
           type="text"
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e) => canEdit && setFormData({ ...formData, name: e.target.value })}
           placeholder="Acme Inc"
-          className="input"
+          disabled={!canEdit}
+          className={`input ${!canEdit ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Industry</label>
-          <select
-            value={formData.industry}
-            onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-            className="input"
-          >
-            <option value="">Select industry...</option>
-            <option value="agency">Agency / Creative Services</option>
-            <option value="consulting">Consulting / Professional Services</option>
-            <option value="recruiting">Recruiting / Staffing</option>
-            <option value="technology">Technology / Software</option>
-            <option value="real_estate">Real Estate</option>
-            <option value="healthcare">Healthcare</option>
-            <option value="finance">Finance / Insurance</option>
-            <option value="manufacturing">Manufacturing</option>
-            <option value="retail">Retail / E-commerce</option>
-            <option value="education">Education</option>
-            <option value="nonprofit">Non-Profit</option>
-            <option value="other">Other</option>
-          </select>
+          {canEdit ? (
+            <select
+              value={formData.industry}
+              onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+              className="input"
+            >
+              <option value="">Select industry...</option>
+              <option value="agency">Agency / Creative Services</option>
+              <option value="consulting">Consulting / Professional Services</option>
+              <option value="recruiting">Recruiting / Staffing</option>
+              <option value="technology">Technology / Software</option>
+              <option value="real_estate">Real Estate</option>
+              <option value="healthcare">Healthcare</option>
+              <option value="finance">Finance / Insurance</option>
+              <option value="manufacturing">Manufacturing</option>
+              <option value="retail">Retail / E-commerce</option>
+              <option value="education">Education</option>
+              <option value="nonprofit">Non-Profit</option>
+              <option value="other">Other</option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={industryOptions[formData.industry] || formData.industry || '—'}
+              disabled
+              className="input bg-gray-50 text-gray-600 cursor-not-allowed"
+            />
+          )}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Size</label>
-          <select
-            value={formData.size}
-            onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-            className="input"
-          >
-            <option value="">Select size...</option>
-            <option value="1-10">1-10 employees</option>
-            <option value="11-50">11-50 employees</option>
-            <option value="51-200">51-200 employees</option>
-            <option value="201-500">201-500 employees</option>
-            <option value="500+">500+ employees</option>
-          </select>
+          {canEdit ? (
+            <select
+              value={formData.size}
+              onChange={(e) => setFormData({ ...formData, size: e.target.value })}
+              className="input"
+            >
+              <option value="">Select size...</option>
+              <option value="1-10">1-10 employees</option>
+              <option value="11-50">11-50 employees</option>
+              <option value="51-200">51-200 employees</option>
+              <option value="201-500">201-500 employees</option>
+              <option value="500+">500+ employees</option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={formData.size ? `${formData.size} employees` : '—'}
+              disabled
+              className="input bg-gray-50 text-gray-600 cursor-not-allowed"
+            />
+          )}
         </div>
       </div>
 
@@ -457,9 +542,10 @@ function OrganizationSettings() {
         <input
           type="url"
           value={formData.website}
-          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-          placeholder="https://yourcompany.com"
-          className="input"
+          onChange={(e) => canEdit && setFormData({ ...formData, website: e.target.value })}
+          placeholder={canEdit ? "https://yourcompany.com" : "—"}
+          disabled={!canEdit}
+          className={`input ${!canEdit ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
         />
       </div>
 
@@ -468,9 +554,10 @@ function OrganizationSettings() {
         <input
           type="tel"
           value={formData.phone}
-          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-          placeholder="+1 (555) 123-4567"
-          className="input"
+          onChange={(e) => canEdit && setFormData({ ...formData, phone: e.target.value })}
+          placeholder={canEdit ? "+1 (555) 123-4567" : "—"}
+          disabled={!canEdit}
+          className={`input ${!canEdit ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
         />
       </div>
 
@@ -479,44 +566,90 @@ function OrganizationSettings() {
         <input
           type="text"
           value={formData.address}
-          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-          placeholder="123 Main St, City, State"
-          className="input"
+          onChange={(e) => canEdit && setFormData({ ...formData, address: e.target.value })}
+          placeholder={canEdit ? "123 Main St, City, State" : "—"}
+          disabled={!canEdit}
+          className={`input ${!canEdit ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
         />
       </div>
 
-      <div className="flex justify-end">
-        <button onClick={handleSave} disabled={saving || !formData.name} className="btn btn-primary">
-          {saving ? (
-            <>
-              <Loader2 size={16} className="animate-spin mr-2" />
-              Saving...
-            </>
-          ) : (
-            'Save Changes'
-          )}
-        </button>
-      </div>
+      {canEdit && (
+        <div className="flex justify-end">
+          <button onClick={handleSave} disabled={saving || !formData.name} className="btn btn-primary">
+            {saving ? (
+              <>
+                <Loader2 size={16} className="animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
+          </button>
+        </div>
+      )}
+
+      {!canEdit && (
+        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <p className="text-sm text-gray-600">
+            <Lock size={14} className="inline mr-1.5" />
+            Only administrators can edit organization settings. Contact your admin to make changes.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
 
+interface TeamMember {
+  id: string
+  email: string
+  full_name: string
+  role: 'admin' | 'member'
+  created_at: string
+}
+
 function TeamSettings() {
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
+  const [editRole, setEditRole] = useState<'admin' | 'member'>('member')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member')
   const [inviting, setInviting] = useState(false)
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [teamMembers, setTeamMembers] = useState<any[]>([])
+  const [editError, setEditError] = useState<string | null>(null)
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null)
   const [isLimitError, setIsLimitError] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
     fetchData()
+    getCurrentUser()
   }, [])
+
+  const getCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      setCurrentUserId(user.id)
+      const { data: profile } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      if (profile) {
+        setCurrentUserRole(profile.role)
+      }
+    }
+  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -597,7 +730,88 @@ function TeamSettings() {
     setIsLimitError(false)
   }
 
+  const openEditModal = (member: TeamMember) => {
+    setSelectedMember(member)
+    setEditRole(member.role)
+    setEditError(null)
+    setShowRemoveConfirm(false)
+    setShowEditModal(true)
+  }
+
+  const closeEditModal = () => {
+    setShowEditModal(false)
+    setSelectedMember(null)
+    setEditError(null)
+    setShowRemoveConfirm(false)
+  }
+
+  const handleRoleChange = async () => {
+    if (!selectedMember) return
+    
+    setSaving(true)
+    setEditError(null)
+
+    try {
+      const res = await fetch('/api/team/members', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId: selectedMember.id,
+          role: editRole,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setEditError(data.error || 'Failed to update role')
+        setSaving(false)
+        return
+      }
+
+      // Refresh team members
+      await fetchData()
+      closeEditModal()
+    } catch (err) {
+      console.error('Update role error:', err)
+      setEditError('An unexpected error occurred')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveMember = async () => {
+    if (!selectedMember) return
+    
+    setRemoving(true)
+    setEditError(null)
+
+    try {
+      const res = await fetch(`/api/team/members?memberId=${selectedMember.id}`, {
+        method: 'DELETE',
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setEditError(data.error || 'Failed to remove member')
+        setRemoving(false)
+        return
+      }
+
+      // Refresh team members and subscription data
+      await fetchData()
+      closeEditModal()
+    } catch (err) {
+      console.error('Remove member error:', err)
+      setEditError('An unexpected error occurred')
+    } finally {
+      setRemoving(false)
+    }
+  }
+
   const canInvite = subscription?.canAddUsers ?? true
+  const isAdmin = currentUserRole === 'admin'
 
   return (
     <>
@@ -713,7 +927,18 @@ function TeamSettings() {
                       <span className="badge badge-success">Active</span>
                     </td>
                     <td className="py-4 text-right">
-                      <button className="text-sm text-gray-500 hover:text-gray-700">Edit</button>
+                      {isAdmin && member.id !== currentUserId ? (
+                        <button 
+                          onClick={() => openEditModal(member)}
+                          className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                        >
+                          Edit
+                        </button>
+                      ) : member.id === currentUserId ? (
+                        <span className="text-sm text-gray-400">You</span>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -846,6 +1071,173 @@ function TeamSettings() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Member Modal */}
+      {showEditModal && selectedMember && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Edit Team Member</h3>
+              <button
+                onClick={closeEditModal}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {/* Member Info */}
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cadence-pink to-cadence-teal flex items-center justify-center text-white font-medium">
+                  {selectedMember.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{selectedMember.full_name || 'Unknown'}</p>
+                  <p className="text-sm text-gray-500">{selectedMember.email}</p>
+                </div>
+              </div>
+
+              {editError && (
+                <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                  <AlertCircle size={16} />
+                  {editError}
+                </div>
+              )}
+
+              {!showRemoveConfirm ? (
+                <>
+                  {/* Role Selection */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Role</label>
+                    <div className="space-y-2">
+                      <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                        editRole === 'member' 
+                          ? 'border-primary-500 bg-primary-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="role"
+                          value="member"
+                          checked={editRole === 'member'}
+                          onChange={() => setEditRole('member')}
+                          className="sr-only"
+                        />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          editRole === 'member' ? 'bg-primary-100' : 'bg-gray-100'
+                        }`}>
+                          <User size={20} className={editRole === 'member' ? 'text-primary-600' : 'text-gray-500'} />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">Member</p>
+                          <p className="text-sm text-gray-500">Can view and manage CRM data</p>
+                        </div>
+                        {editRole === 'member' && <Check size={20} className="text-primary-600" />}
+                      </label>
+
+                      <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                        editRole === 'admin' 
+                          ? 'border-primary-500 bg-primary-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="role"
+                          value="admin"
+                          checked={editRole === 'admin'}
+                          onChange={() => setEditRole('admin')}
+                          className="sr-only"
+                        />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          editRole === 'admin' ? 'bg-primary-100' : 'bg-gray-100'
+                        }`}>
+                          <ShieldCheck size={20} className={editRole === 'admin' ? 'text-primary-600' : 'text-gray-500'} />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">Admin</p>
+                          <p className="text-sm text-gray-500">Can manage team members and settings</p>
+                        </div>
+                        {editRole === 'admin' && <Check size={20} className="text-primary-600" />}
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setShowRemoveConfirm(true)}
+                      className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
+                    >
+                      <Trash2 size={16} />
+                      Remove from team
+                    </button>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={closeEditModal}
+                        className="btn btn-secondary"
+                        disabled={saving}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleRoleChange}
+                        disabled={saving || editRole === selectedMember.role}
+                        className="btn btn-primary"
+                      >
+                        {saving ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin mr-2" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Changes'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Remove Confirmation */
+                <div className="text-center">
+                  <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+                    <Trash2 size={24} className="text-red-600" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">Remove team member?</h4>
+                  <p className="text-gray-600 mb-6">
+                    Are you sure you want to remove <span className="font-medium">{selectedMember.full_name || selectedMember.email}</span> from your organization? They will lose access immediately.
+                  </p>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowRemoveConfirm(false)}
+                      className="btn btn-secondary flex-1"
+                      disabled={removing}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleRemoveMember}
+                      disabled={removing}
+                      className="btn bg-red-600 hover:bg-red-700 text-white flex-1"
+                    >
+                      {removing ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin mr-2" />
+                          Removing...
+                        </>
+                      ) : (
+                        'Yes, Remove'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
