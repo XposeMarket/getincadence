@@ -7,6 +7,7 @@ import { Plus, Search, Filter, Calendar, CheckCircle2, Circle, Clock } from 'luc
 import TasksList from '@/components/tasks/TasksList'
 import CreateTaskModal from '@/components/tasks/CreateTaskModal'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import { useIndustry } from '@/lib/contexts/IndustryContext'
 
 interface Task {
   id: string
@@ -44,6 +45,7 @@ export default function TasksPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [orgId, setOrgId] = useState<string | null>(null)
   const supabase = createClient()
+  const { terminology } = useIndustry()
 
   useEffect(() => {
     const initOrg = async () => {
@@ -138,7 +140,7 @@ export default function TasksPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Tasks</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{terminology.tasks}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {pendingCount} pending · {inProgressCount} in progress · {completedCount} completed
             {overdueCount > 0 && <span className="text-red-500"> · {overdueCount} overdue</span>}
@@ -149,7 +151,7 @@ export default function TasksPage() {
           className="btn btn-primary w-full sm:w-auto"
         >
           <Plus size={18} className="mr-2" />
-          Add Task
+          Add {terminology.task}
         </button>
       </div>
 
@@ -167,7 +169,7 @@ export default function TasksPage() {
             </div>
             <div className="min-w-0">
               <p className="text-lg sm:text-2xl font-bold text-gray-900">{tasks.length}</p>
-              <p className="text-xs sm:text-sm text-gray-500 truncate">All Tasks</p>
+              <p className="text-xs sm:text-sm text-gray-500 truncate">All {terminology.tasks}</p>
             </div>
           </div>
         </button>

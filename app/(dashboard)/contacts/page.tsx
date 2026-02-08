@@ -7,6 +7,7 @@ import { Plus, Search, Filter } from 'lucide-react'
 import ContactsTable from '@/components/contacts/ContactsTable'
 import CreateContactModal from '@/components/contacts/CreateContactModal'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import { useIndustry } from '@/lib/contexts/IndustryContext'
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<any[]>([])
@@ -15,6 +16,7 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [orgId, setOrgId] = useState<string | null>(null)
   const supabase = createClient()
+  const { terminology } = useIndustry()
 
   useEffect(() => {
     const initOrg = async () => {
@@ -73,12 +75,12 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Contacts</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{contacts.length} total contacts</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{terminology.contacts}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{contacts.length} total {terminology.contacts.toLowerCase()}</p>
         </div>
         <button onClick={() => setShowCreateModal(true)} className="btn btn-primary w-full sm:w-auto">
           <Plus size={18} className="mr-2" />
-          Add Contact
+          Add {terminology.contact}
         </button>
       </div>
 
@@ -88,7 +90,7 @@ export default function ContactsPage() {
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search contacts..."
+            placeholder={`Search ${terminology.contacts.toLowerCase()}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input pl-10"

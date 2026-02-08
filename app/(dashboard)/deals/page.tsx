@@ -11,6 +11,7 @@ import DealLostReasonModal from '@/components/deals/DealLostReasonModal'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import { ActivityLogger } from '@/lib/activity-logger'
 import { onDealStageChanged } from '@/lib/automation-engine'
+import { useIndustry } from '@/lib/contexts/IndustryContext'
 
 interface PipelineStage {
   id: string
@@ -70,6 +71,7 @@ export default function DealsPage() {
   } | null>(null)
   const [automationToast, setAutomationToast] = useState<AutomationToast>({ message: '', visible: false })
   const supabase = createClient()
+  const { terminology } = useIndustry()
 
   useEffect(() => {
     const initOrg = async () => {
@@ -318,9 +320,9 @@ export default function DealsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Deals</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{terminology.deals}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {filteredDeals.length} deals · ${totalValue.toLocaleString()} total value
+            {filteredDeals.length} {terminology.deals.toLowerCase()} · ${totalValue.toLocaleString()} total value
           </p>
         </div>
         <button
@@ -329,7 +331,7 @@ export default function DealsPage() {
           disabled={stages.length === 0}
         >
           <Plus size={18} className="mr-2" />
-          Add Deal
+          Add {terminology.deal}
         </button>
       </div>
 
@@ -353,7 +355,7 @@ export default function DealsPage() {
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search deals..."
+            placeholder={`Search ${terminology.deals.toLowerCase()}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input pl-10"

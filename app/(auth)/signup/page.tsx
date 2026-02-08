@@ -6,12 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import { INDUSTRY_CONFIGS, IndustryType } from '@/lib/industry-config'
 
 function SignupForm() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [orgName, setOrgName] = useState('')
+  const [industryType, setIndustryType] = useState<IndustryType>('default')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,6 +41,7 @@ function SignupForm() {
           data: {
             full_name: fullName,
             org_name: orgName,
+            industry_type: industryType,
           },
         },
       })
@@ -72,6 +75,7 @@ function SignupForm() {
             email,
             fullName,
             orgName,
+            industryType,
           }),
         })
 
@@ -196,6 +200,28 @@ function SignupForm() {
             className="input"
             disabled={loading}
           />
+        </div>
+
+        <div>
+          <label htmlFor="industryType" className="block text-sm font-medium text-gray-700 mb-1.5">
+            Industry type
+          </label>
+          <select
+            id="industryType"
+            value={industryType}
+            onChange={(e) => setIndustryType(e.target.value as IndustryType)}
+            className="input"
+            disabled={loading}
+          >
+            {Object.values(INDUSTRY_CONFIGS).map((config) => (
+              <option key={config.id} value={config.id}>
+                {config.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-xs text-gray-500">
+            {INDUSTRY_CONFIGS[industryType].description}
+          </p>
         </div>
 
         <div>

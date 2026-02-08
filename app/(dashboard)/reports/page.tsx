@@ -16,6 +16,7 @@ import ReportSection from '@/components/reports/ReportSection'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import AccessDenied from '@/components/shared/AccessDenied'
 import { getPermissions, UserRole } from '@/lib/permissions'
+import { useIndustry } from '@/lib/contexts/IndustryContext'
 
 type TimeRange = '7d' | '30d' | '90d' | 'all'
 
@@ -152,6 +153,7 @@ export default function ReportsPage() {
   const [checkingPermissions, setCheckingPermissions] = useState(true)
   const [userRole, setUserRole] = useState<UserRole>('member')
   const [orgId, setOrgId] = useState<string | null>(null)
+  const { terminology } = useIndustry()
   
   // Subscription tier
   const [userTier, setUserTier] = useState<PlanType>('solo')
@@ -900,8 +902,8 @@ export default function ReportsPage() {
       {/* Header - hidden in print */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Reports</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Track your sales performance and metrics</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{terminology.reports}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Track your performance and metrics</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Time Range Selector */}

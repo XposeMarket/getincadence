@@ -1,15 +1,17 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getIndustryConfig, IndustryType } from '@/lib/industry-config'
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, email, fullName, orgName } = await request.json()
+    const { userId, email, fullName, orgName, industryType } = await request.json()
 
     console.log('=== Setup API Called ===')
     console.log('User ID:', userId)
     console.log('Email:', email)
     console.log('Full Name:', fullName)
     console.log('Org Name:', orgName)
+    console.log('Industry Type:', industryType)
 
     if (!userId || !email || !fullName || !orgName) {
       console.error('Missing required fields')
@@ -22,6 +24,10 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient()
     console.log('Admin client created')
 
+    // Get industry config for pipeline creation
+    const industryConfig = getIndustryConfig(industryType as IndustryType || 'default')
+    console.log('Using industry config:', industryConfig.id)
+
     // Create the organization
     console.log('Creating organization...')
     const { data: org, error: orgError } = await supabase
@@ -29,6 +35,7 @@ export async function POST(request: NextRequest) {
       .insert({
         name: orgName,
         slug: orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        industry_type: industryType || 'default',
       })
       .select()
       .single()
@@ -90,34 +97,28 @@ export async function POST(request: NextRequest) {
 
     // Create default pipeline for the org
     console.log('Creating default pipeline...')
+    const pipelineName = industryConfig.terminology.pipeline || 'Pipeline'
     const { data: pipeline, error: pipelineError } = await supabase
       .from('pipelines')
       .insert({
         org_id: org.id,
-        name: 'Sales Pipeline',
+        name: pipelineName,
         is_default: true,
       })
       .select()
       .single()
 
     if (!pipelineError && pipeline) {
-      // Create default pipeline stages
-      const defaultStages = [
-        { name: 'Lead', position: 0, color: '#6B7280' },
-        { name: 'Qualified', position: 1, color: '#3B82F6' },
-        { name: 'Proposal', position: 2, color: '#F59E0B' },
-        { name: 'Negotiation', position: 3, color: '#8B5CF6' },
-        { name: 'Closed Won', position: 4, color: '#10B981', is_won: true },
-        { name: 'Closed Lost', position: 5, color: '#EF4444', is_lost: true },
-      ]
+      // Create default pipeline stages based on industry
+      const defaultStages = industryConfig.defaultPipelineStages
 
       await supabase.from('pipeline_stages').insert(
         defaultStages.map((stage) => ({
           ...stage,
-          org_id: org.id,
           pipeline_id: pipeline.id,
         }))
       )
+      console.log(`Created ${defaultStages.length} pipeline stages for ${industryConfig.id} industry`)
     }
 
     return NextResponse.json({ success: true, orgId: org.id })

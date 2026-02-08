@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, Building2, Users, CreditCard, Bell, Shield, Palette, Check, Loader2, AlertCircle, Lock, ArrowUpRight, Crown, X, Trash2, ShieldCheck, Eye } from 'lucide-react'
+import { User, Building2, Users, CreditCard, Bell, Shield, Palette, Check, Loader2, AlertCircle, Lock, ArrowUpRight, Crown, X, Trash2, ShieldCheck, Eye, RefreshCw } from 'lucide-react'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import { getPermissions, UserRole } from '@/lib/permissions'
+import { INDUSTRY_CONFIGS, IndustryType, getIndustryConfig } from '@/lib/industry-config'
 
 type SettingsTab = 'profile' | 'organization' | 'team' | 'billing' | 'notifications' | 'security' | 'appearance'
 type AccentColor = '#E91E8C' | '#3B82F6' | '#10B981' | '#F59E0B' | '#8B5CF6'
@@ -594,6 +595,291 @@ function OrganizationSettings({ canEdit = true }: { canEdit?: boolean }) {
             <Lock size={14} className="inline mr-1.5" />
             Only administrators can edit organization settings. Contact your admin to make changes.
           </p>
+        </div>
+      )}
+
+      {/* Industry Type Section */}
+      {canEdit && <IndustryTypeSettings />}
+    </div>
+  )
+}
+
+function IndustryTypeSettings() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [orgId, setOrgId] = useState<string | null>(null)
+  const [currentIndustryType, setCurrentIndustryType] = useState<IndustryType>('default')
+  const [selectedIndustryType, setSelectedIndustryType] = useState<IndustryType>('default')
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const supabase = createClient()
+  const router = useRouter()
+
+  useEffect(() => {
+    loadIndustryType()
+  }, [])
+
+  const loadIndustryType = async () => {
+    setLoading(true)
+    
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('org_id')
+      .eq('id', user.id)
+      .single()
+
+    if (!userProfile?.org_id) {
+      setLoading(false)
+      return
+    }
+
+    setOrgId(userProfile.org_id)
+
+    const { data: org } = await supabase
+      .from('orgs')
+      .select('industry_type')
+      .eq('id', userProfile.org_id)
+      .single()
+
+    if (org?.industry_type) {
+      setCurrentIndustryType(org.industry_type as IndustryType)
+      setSelectedIndustryType(org.industry_type as IndustryType)
+    }
+
+    setLoading(false)
+  }
+
+  const handleResetPipeline = async () => {
+    if (!orgId) return
+
+    setResetting(true)
+    setError(null)
+    setSuccess(false)
+
+    try {
+      // Update org industry_type
+      const { error: orgError } = await supabase
+        .from('orgs')
+        .update({ industry_type: selectedIndustryType })
+        .eq('id', orgId)
+
+      if (orgError) throw orgError
+
+      // Get the default pipeline for this org
+      const { data: pipeline } = await supabase
+        .from('pipelines')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('is_default', true)
+        .single()
+
+      if (!pipeline) {
+        throw new Error('No default pipeline found')
+      }
+
+      // Delete existing stages (this will cascade to any related data)
+      const { error: deleteError } = await supabase
+        .from('pipeline_stages')
+        .delete()
+        .eq('pipeline_id', pipeline.id)
+
+      if (deleteError) throw deleteError
+
+      // Get the new stages from industry config
+      const industryConfig = getIndustryConfig(selectedIndustryType)
+      
+      // Insert new stages (pipeline_stages doesn't have org_id, only pipeline_id)
+      const newStages = industryConfig.defaultPipelineStages.map(stage => ({
+        ...stage,
+        pipeline_id: pipeline.id,
+      }))
+
+      const { error: insertError } = await supabase
+        .from('pipeline_stages')
+        .insert(newStages)
+
+      if (insertError) throw insertError
+
+      // Update pipeline name based on industry
+      await supabase
+        .from('pipelines')
+        .update({ name: industryConfig.terminology.pipeline })
+        .eq('id', pipeline.id)
+
+      setCurrentIndustryType(selectedIndustryType)
+      setSuccess(true)
+      setShowResetConfirm(false)
+      
+      // Refresh page to reload sidebar with new terminology
+      setTimeout(() => {
+        router.refresh()
+        window.location.reload()
+      }, 1500)
+
+    } catch (err: any) {
+      console.error('Reset pipeline error:', err)
+      setError(err.message || 'Failed to reset pipeline')
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="border-t border-gray-200 pt-6 mt-6">
+        <div className="flex items-center justify-center py-8">
+          <LoadingSpinner size="sm" />
+        </div>
+      </div>
+    )
+  }
+
+  const industryConfig = getIndustryConfig(selectedIndustryType)
+
+  return (
+    <div className="border-t border-gray-200 pt-6 mt-6">
+      <div className="mb-4">
+        <h3 className="text-base font-semibold text-gray-900">Industry Template</h3>
+        <p className="text-sm text-gray-500 mt-1">
+          Change your pipeline stages and terminology to match your industry
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+          <AlertCircle size={16} />
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-4 p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+          <Check size={16} />
+          Pipeline reset successfully! Reloading...
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Industry Type</label>
+          <select
+            value={selectedIndustryType}
+            onChange={(e) => setSelectedIndustryType(e.target.value as IndustryType)}
+            className="input max-w-xs"
+            disabled={resetting}
+          >
+            {Object.values(INDUSTRY_CONFIGS).map((config) => (
+              <option key={config.id} value={config.id}>
+                {config.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1.5">{industryConfig.description}</p>
+        </div>
+
+        {/* Preview stages */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <p className="text-sm font-medium text-gray-700 mb-3">Pipeline stages for {industryConfig.label}:</p>
+          <div className="flex flex-wrap gap-2">
+            {industryConfig.defaultPipelineStages.map((stage, index) => (
+              <span
+                key={index}
+                className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium"
+                style={{ 
+                  backgroundColor: stage.color + '20',
+                  color: stage.color,
+                  border: `1px solid ${stage.color}40`
+                }}
+              >
+                {stage.name}
+                {stage.is_won && ' ✓'}
+                {stage.is_lost && ' ✗'}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Terminology preview */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <p className="text-sm font-medium text-gray-700 mb-2">Terminology:</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+            <div><span className="text-gray-500">Deals →</span> <span className="font-medium">{industryConfig.terminology.deals}</span></div>
+            <div><span className="text-gray-500">Contacts →</span> <span className="font-medium">{industryConfig.terminology.contacts}</span></div>
+            <div><span className="text-gray-500">Tasks →</span> <span className="font-medium">{industryConfig.terminology.tasks}</span></div>
+            <div><span className="text-gray-500">Reports →</span> <span className="font-medium">{industryConfig.terminology.reports}</span></div>
+            <div><span className="text-gray-500">Close Date →</span> <span className="font-medium">{industryConfig.terminology.closeDate}</span></div>
+            <div><span className="text-gray-500">Amount →</span> <span className="font-medium">{industryConfig.terminology.dealAmount}</span></div>
+          </div>
+        </div>
+
+        {selectedIndustryType !== currentIndustryType && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-800">
+              <AlertCircle size={14} className="inline mr-1.5" />
+              <strong>Warning:</strong> Resetting your pipeline will delete all existing pipeline stages. Your deals will need to be reassigned to new stages. This action cannot be undone.
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowResetConfirm(true)}
+            disabled={resetting}
+            className="btn btn-primary disabled:opacity-50"
+          >
+            <RefreshCw size={16} className="mr-2" />
+            {selectedIndustryType === currentIndustryType ? 'Reset Pipeline Stages' : `Reset Pipeline to ${industryConfig.label}`}
+          </button>
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Pipeline Reset</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to reset your pipeline to <strong>{industryConfig.label}</strong>? 
+              This will:
+            </p>
+            <ul className="text-sm text-gray-600 list-disc list-inside mb-4 space-y-1">
+              <li>Delete all existing pipeline stages</li>
+              <li>Create new stages: {industryConfig.defaultPipelineStages.map(s => s.name).join(', ')}</li>
+              <li>Update terminology throughout the app</li>
+              <li>Existing deals will need to be reassigned to new stages</li>
+            </ul>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="btn btn-secondary"
+                disabled={resetting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetPipeline}
+                className="btn btn-primary bg-red-600 hover:bg-red-700"
+                disabled={resetting}
+              >
+                {resetting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin mr-2" />
+                    Resetting...
+                  </>
+                ) : (
+                  'Yes, Reset Pipeline'
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

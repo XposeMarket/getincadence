@@ -15,10 +15,12 @@ import {
   CalendarDays,
   X,
   MessageSquarePlus,
-  Lock
+  Lock,
+  LucideIcon
 } from 'lucide-react'
 import clsx from 'clsx'
 import { getPermissions, UserRole } from '@/lib/permissions'
+import { getTerminology, IndustryType } from '@/lib/industry-config'
 
 interface SidebarProps {
   user: {
@@ -29,24 +31,34 @@ interface SidebarProps {
     orgs: {
       id: string
       name: string
+      industry_type?: string
     }
   }
   isOpen?: boolean
   onClose?: () => void
 }
 
-// Navigation items with optional admin-only flag
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Planner', href: '/planner', icon: CalendarDays },
-  { name: 'Contacts', href: '/contacts', icon: Users },
-  { name: 'Companies', href: '/companies', icon: Building2 },
-  { name: 'Deals', href: '/deals', icon: Handshake },
-  { name: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { name: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true },
-]
+interface NavItem {
+  name: string
+  href: string
+  icon: LucideIcon
+  adminOnly?: boolean
+}
 
-const secondaryNav = [
+// Get navigation items based on industry terminology
+function getNavigation(terminology: ReturnType<typeof getTerminology>): NavItem[] {
+  return [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Planner', href: '/planner', icon: CalendarDays },
+    { name: terminology.contacts, href: '/contacts', icon: Users },
+    { name: 'Companies', href: '/companies', icon: Building2 },
+    { name: terminology.deals, href: '/deals', icon: Handshake },
+    { name: terminology.tasks, href: '/tasks', icon: CheckSquare },
+    { name: terminology.reports, href: '/reports', icon: BarChart3, adminOnly: true },
+  ]
+}
+
+const secondaryNav: NavItem[] = [
   { name: 'Automations', href: '/automations', icon: Zap, adminOnly: true },
   { name: 'Feedback', href: '/feedback', icon: MessageSquarePlus },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -55,6 +67,9 @@ const secondaryNav = [
 export default function Sidebar({ user, isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
   const permissions = getPermissions(user.role as UserRole)
+  const industryType = (user.orgs.industry_type as IndustryType) || 'default'
+  const terminology = getTerminology(industryType)
+  const navigation = getNavigation(terminology)
 
   const handleLinkClick = () => {
     // Close mobile sidebar when a link is clicked
