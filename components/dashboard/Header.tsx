@@ -1,14 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Search, Bell, Plus, LogOut, ChevronDown, Users, Building2, Handshake, CheckSquare, Menu } from 'lucide-react'
+import { Search, Bell, Plus, LogOut, ChevronDown, Users, Building2, Handshake, CheckSquare, Menu, Calendar, Clock, Activity } from 'lucide-react'
 import CreateContactModal from '@/components/contacts/CreateContactModal'
 import CreateCompanyModal from '@/components/companies/CreateCompanyModal'
 import CreateTaskModal from '@/components/tasks/CreateTaskModal'
 import { DEMO_ORG_ID } from '@/lib/constants'
 import { ActivityLogger } from '@/lib/activity-logger'
+import { formatDistanceToNow } from 'date-fns'
+
+interface Notification {
+  id: string
+  type: 'task_assigned' | 'task_due' | 'deal_activity'
+  title: string
+  description: string
+  created_at: string
+  link?: string
+}
 
 interface HeaderProps {
   user: {
@@ -27,11 +37,116 @@ interface HeaderProps {
 export default function Header({ user, onMenuClick }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [showMobileSearch, setShowMobileSearch] = useState(false)
   const [activeModal, setActiveModal] = useState<'contact' | 'company' | 'deal' | 'task' | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  // Fetch notifications
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      const notifs: Notification[] = []
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      const nextWeek = new Date(today)
+      nextWeek.setDate(nextWeek.getDate() + 7)
+
+      // 1. Tasks assigned to user
+      const { data: assignedTasks } = await supabase
+        .from('tasks')
+        .select('id, title, created_at')
+        .eq('assigned_to', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (assignedTasks) {
+        assignedTasks.forEach(task => {
+          notifs.push({
+            id: `task-assigned-${task.id}`,
+            type: 'task_assigned',
+            title: 'Task assigned to you',
+            description: task.title,
+            created_at: task.created_at,
+            link: '/tasks'
+          })
+        })
+      }
+
+      // 2. Tasks due today or upcoming (within 7 days)
+      const { data: dueTasks } = await supabase
+        .from('tasks')
+        .select('id, title, due_date')
+        .eq('assigned_to', user.id)
+        .neq('status', 'completed')
+        .gte('due_date', today.toISOString())
+        .lte('due_date', nextWeek.toISOString())
+        .order('due_date', { ascending: true })
+        .limit(5)
+
+      if (dueTasks) {
+        dueTasks.forEach(task => {
+          const dueDate = new Date(task.due_date)
+          const isToday = dueDate >= today && dueDate < tomorrow
+          notifs.push({
+            id: `task-due-${task.id}`,
+            type: 'task_due',
+            title: isToday ? '⚠️ Task due today' : 'Upcoming task',
+            description: task.title,
+            created_at: task.due_date,
+            link: '/tasks'
+          })
+        })
+      }
+
+      // 3. Recent activity on deals where user is owner
+      const { data: dealActivities } = await supabase
+        .from('activities')
+        .select(`
+          id,
+          type,
+          subject,
+          description,
+          created_at,
+          deal_id,
+          deals!inner (
+            id,
+            name,
+            owner_id
+          )
+        `)
+        .eq('deals.owner_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (dealActivities) {
+        dealActivities.forEach((activity: any) => {
+          const deal = Array.isArray(activity.deals) ? activity.deals[0] : activity.deals
+          if (deal) {
+            notifs.push({
+              id: `activity-${activity.id}`,
+              type: 'deal_activity',
+              title: `Activity on ${deal.name}`,
+              description: activity.subject || activity.type,
+              created_at: activity.created_at,
+              link: `/deals/${deal.id}`
+            })
+          }
+        })
+      }
+
+      // Sort by created_at descending and limit
+      notifs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      setNotifications(notifs.slice(0, 10))
+    }
+
+    fetchNotifications()
+  }, [user.id, supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -131,10 +246,70 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
           </div>
 
           {/* Notifications */}
-          <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-            <Bell size={20} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary-500 rounded-full" />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Bell size={20} />
+              {notifications.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary-500 rounded-full" />
+              )}
+            </button>
+
+            {showNotifications && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowNotifications(false)} />
+                <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-20 animate-fade-in max-h-[70vh] overflow-hidden flex flex-col">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900">Notifications</h3>
+                    {notifications.length > 0 && (
+                      <span className="text-xs text-gray-500">{notifications.length} new</span>
+                    )}
+                  </div>
+                  
+                  <div className="overflow-y-auto flex-1">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <Bell size={32} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm text-gray-500">No notifications</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        {notifications.map((notif) => (
+                          <button
+                            key={notif.id}
+                            onClick={() => {
+                              setShowNotifications(false)
+                              if (notif.link) router.push(notif.link)
+                            }}
+                            className="w-full px-4 py-3 hover:bg-gray-50 transition-colors text-left flex gap-3"
+                          >
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              notif.type === 'task_assigned' ? 'bg-blue-100 text-blue-600' :
+                              notif.type === 'task_due' ? 'bg-yellow-100 text-yellow-600' :
+                              'bg-purple-100 text-purple-600'
+                            }`}>
+                              {notif.type === 'task_assigned' && <CheckSquare size={14} />}
+                              {notif.type === 'task_due' && <Clock size={14} />}
+                              {notif.type === 'deal_activity' && <Activity size={14} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900">{notif.title}</p>
+                              <p className="text-sm text-gray-500 truncate">{notif.description}</p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true })}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* User menu */}
           <div className="relative">
