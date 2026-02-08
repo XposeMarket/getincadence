@@ -21,6 +21,7 @@ function SignupForm() {
   // Get redirect URL and plan from query params
   const redirectTo = searchParams.get('redirect') || '/dashboard'
   const selectedPlan = searchParams.get('plan')
+  const billingPeriod = searchParams.get('period') || 'monthly'
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,7 +43,6 @@ function SignupForm() {
       })
 
       if (authError) {
-        // Handle rate limit error specifically
         if (authError.message.includes('rate limit')) {
           setError('Too many signup attempts. Please try again in a few minutes or use a different email address.')
         } else if (authError.message.includes('User already registered')) {
@@ -81,16 +81,39 @@ function SignupForm() {
           return
         }
 
-        // Redirect to the original destination or dashboard
-        // If they came from pricing with a plan, go back there to complete checkout
-        router.push(redirectTo)
+        // If user selected a paid plan, go directly to Stripe checkout
+        if (selectedPlan && ['starter', 'team', 'growth'].includes(selectedPlan)) {
+          try {
+            const checkoutRes = await fetch('/api/stripe/checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                plan: selectedPlan, 
+                period: billingPeriod 
+              }),
+            })
+
+            const checkoutData = await checkoutRes.json()
+
+            if (checkoutRes.ok && checkoutData.url) {
+              // Redirect directly to Stripe checkout
+              window.location.href = checkoutData.url
+              return
+            }
+          } catch (err) {
+            console.error('Auto-checkout error:', err)
+            // Fall through to dashboard if checkout fails
+          }
+        }
+
+        // No plan selected or checkout failed - go to dashboard
+        router.push('/dashboard')
         router.refresh()
       } else {
         // Email confirmation required - redirect to verification page
-        // Store redirect info in sessionStorage for after verification
         if (selectedPlan) {
           sessionStorage.setItem('pendingPlan', selectedPlan)
-          sessionStorage.setItem('pendingRedirect', redirectTo)
+          sessionStorage.setItem('pendingPeriod', billingPeriod)
         }
         router.push('/verify-email')
       }
@@ -102,9 +125,11 @@ function SignupForm() {
   }
 
   // Build login link with redirect params
-  const loginHref = selectedPlan 
-    ? `/login?redirect=${encodeURIComponent(redirectTo)}&plan=${selectedPlan}`
-    : '/login'
+  const loginParams = new URLSearchParams()
+  if (redirectTo !== '/dashboard') loginParams.set('redirect', redirectTo)
+  if (selectedPlan) loginParams.set('plan', selectedPlan)
+  if (billingPeriod !== 'monthly') loginParams.set('period', billingPeriod)
+  const loginHref = loginParams.toString() ? `/login?${loginParams.toString()}` : '/login'
 
   return (
     <div className="animate-fade-in">
@@ -113,7 +138,7 @@ function SignupForm() {
 
       {selectedPlan && (
         <div className="mb-6 p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700">
-          Create an account to start your <span className="font-semibold capitalize">{selectedPlan}</span> plan trial
+          Create an account to start your <span className="font-semibold capitalize">{selectedPlan}</span> plan 14-day trial
         </div>
       )}
 
@@ -208,10 +233,10 @@ function SignupForm() {
           {loading ? (
             <>
               <Loader2 size={18} className="animate-spin mr-2" />
-              Creating account...
+              {selectedPlan ? 'Creating account & starting trial...' : 'Creating account...'}
             </>
           ) : (
-            'Create account'
+            selectedPlan ? `Start ${selectedPlan} trial` : 'Create account'
           )}
         </button>
       </form>

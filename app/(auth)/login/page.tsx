@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -16,9 +16,10 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  // Get redirect URL from query params
+  // Get redirect URL and plan from query params
   const redirectTo = searchParams.get('redirect') || '/dashboard'
   const selectedPlan = searchParams.get('plan')
+  const billingPeriod = searchParams.get('period') || 'monthly'
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,7 +37,32 @@ function LoginForm() {
       return
     }
 
-    // Redirect to the original page or dashboard
+    // If user came from pricing with a plan, go directly to checkout
+    if (selectedPlan && ['starter', 'team', 'growth'].includes(selectedPlan)) {
+      try {
+        const res = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            plan: selectedPlan, 
+            period: billingPeriod 
+          }),
+        })
+
+        const data = await res.json()
+
+        if (res.ok && data.url) {
+          // Redirect directly to Stripe checkout
+          window.location.href = data.url
+          return
+        }
+      } catch (err) {
+        console.error('Auto-checkout error:', err)
+        // Fall through to normal redirect if checkout fails
+      }
+    }
+
+    // Normal redirect to dashboard or specified page
     router.push(redirectTo)
     router.refresh()
   }
@@ -46,9 +72,11 @@ function LoginForm() {
   }
 
   // Build signup link with redirect params
-  const signupHref = selectedPlan 
-    ? `/signup?redirect=${encodeURIComponent(redirectTo)}&plan=${selectedPlan}`
-    : '/signup'
+  const signupParams = new URLSearchParams()
+  if (redirectTo !== '/dashboard') signupParams.set('redirect', redirectTo)
+  if (selectedPlan) signupParams.set('plan', selectedPlan)
+  if (billingPeriod !== 'monthly') signupParams.set('period', billingPeriod)
+  const signupHref = signupParams.toString() ? `/signup?${signupParams.toString()}` : '/signup'
 
   return (
     <div className="animate-fade-in">
@@ -80,6 +108,7 @@ function LoginForm() {
             placeholder="you@company.com"
             required
             className="input"
+            disabled={loading}
           />
         </div>
 
@@ -96,11 +125,13 @@ function LoginForm() {
               placeholder="••••••••"
               required
               className="input pr-10"
+              disabled={loading}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              disabled={loading}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -115,22 +146,24 @@ function LoginForm() {
           {loading ? (
             <>
               <Loader2 size={18} className="animate-spin mr-2" />
-              Signing in...
+              {selectedPlan ? 'Continuing to checkout...' : 'Signing in...'}
             </>
           ) : (
-            'Sign in'
+            selectedPlan ? `Continue to ${selectedPlan} plan` : 'Sign in'
           )}
         </button>
       </form>
 
-      <div className="mt-4">
-        <button
-          onClick={handleDemoMode}
-          className="btn btn-secondary w-full h-11"
-        >
-          Enter Demo Mode
-        </button>
-      </div>
+      {!selectedPlan && (
+        <div className="mt-4">
+          <button
+            onClick={handleDemoMode}
+            className="btn btn-secondary w-full h-11"
+          >
+            Enter Demo Mode
+          </button>
+        </div>
+      )}
 
       <p className="mt-6 text-center text-sm text-gray-600">
         Don't have an account?{' '}

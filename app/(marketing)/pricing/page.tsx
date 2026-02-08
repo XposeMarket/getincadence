@@ -147,9 +147,9 @@ export default function PricingPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        // If unauthorized, redirect to login
+        // If unauthorized, redirect to login with plan info
         if (res.status === 401) {
-          router.push(`/login?redirect=/pricing&plan=${planId}`)
+          router.push(`/login?plan=${planId}&period=${billingPeriod}`)
           return
         }
         throw new Error(data.error || 'Failed to create checkout session')
