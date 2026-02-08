@@ -8,6 +8,7 @@ import PipelineKanban from '@/components/deals/PipelineKanban'
 import DealsTable from '@/components/deals/DealsTable'
 import CreateDealModal from '@/components/deals/CreateDealModal'
 import DealLostReasonModal from '@/components/deals/DealLostReasonModal'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import { ActivityLogger } from '@/lib/activity-logger'
 import { onDealStageChanged } from '@/lib/automation-engine'
 
@@ -297,7 +298,7 @@ export default function DealsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <LoadingSpinner size="md" />
       </div>
     )
   }

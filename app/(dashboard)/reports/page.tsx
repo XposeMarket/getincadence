@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getCurrentUserOrgId } from '@/lib/org-helpers'
 import { 
   BarChart3, TrendingUp, TrendingDown, DollarSign, Users, Handshake, 
-  CheckSquare, Calendar, ArrowUpRight, ArrowDownRight, Loader2, 
+  CheckSquare, Calendar, ArrowUpRight, ArrowDownRight, 
   AlertTriangle, Clock, User, ExternalLink, Printer, X, FileText
 } from 'lucide-react'
 import Link from 'next/link'
@@ -13,6 +13,7 @@ import { formatDistanceToNow, subDays, format } from 'date-fns'
 import { PlanType } from '@/lib/subscription/plans'
 import { canAccessSection, getSectionsForTier, SectionKey as TierSectionKey } from '@/lib/reports/tier-permissions'
 import ReportSection from '@/components/reports/ReportSection'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 type TimeRange = '7d' | '30d' | '90d' | 'all'
 
@@ -840,7 +841,7 @@ export default function ReportsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-primary-500" size={32} />
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

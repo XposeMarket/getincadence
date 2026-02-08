@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getCurrentUserOrgId } from '@/lib/org-helpers'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import { 
   ArrowLeft, 
   Mail, 
@@ -157,7 +158,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <LoadingSpinner size="md" />
       </div>
     )
   }

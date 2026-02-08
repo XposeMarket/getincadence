@@ -12,6 +12,7 @@ import {
 import { formatDistanceToNow } from 'date-fns'
 import ActivityTimeline from '@/components/shared/ActivityTimeline'
 import CreateTaskModal from '@/components/tasks/CreateTaskModal'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 interface Company {
   id: string
@@ -126,7 +127,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
     loadCompany()
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div></div>
+  if (loading) return <div className="flex items-center justify-center h-64"><LoadingSpinner size="md" /></div>
 
   if (!company) return <div className="text-center py-12"><h2 className="text-xl font-semibold text-gray-900">Company not found</h2><Link href="/companies" className="text-primary-600 mt-2 inline-block">Back to companies</Link></div>
 

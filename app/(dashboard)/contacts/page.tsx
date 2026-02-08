@@ -6,6 +6,7 @@ import { getCurrentUserOrgId } from '@/lib/org-helpers'
 import { Plus, Search, Filter } from 'lucide-react'
 import ContactsTable from '@/components/contacts/ContactsTable'
 import CreateContactModal from '@/components/contacts/CreateContactModal'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<any[]>([])
@@ -62,7 +63,7 @@ export default function ContactsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <LoadingSpinner size="md" />
       </div>
     )
   }

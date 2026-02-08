@@ -13,6 +13,7 @@ import { formatActivityTime, formatFullTimestamp } from '@/lib/date-utils'
 import CreateTaskModal from '@/components/tasks/CreateTaskModal'
 import { ActivityLogger } from '@/lib/activity-logger'
 import { getSuggestedTasksForStage, SuggestedTask } from '@/lib/automation-engine'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 interface PipelineStage {
   id: string
@@ -212,7 +213,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <LoadingSpinner size="md" />
       </div>
     )
   }

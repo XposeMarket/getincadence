@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { User, Building2, Users, CreditCard, Bell, Shield, Palette, Check, Loader2, AlertCircle, Lock, ArrowUpRight, Crown } from 'lucide-react'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 type SettingsTab = 'profile' | 'organization' | 'team' | 'billing' | 'notifications' | 'security' | 'appearance'
 type AccentColor = '#E91E8C' | '#3B82F6' | '#10B981' | '#F59E0B' | '#8B5CF6'
@@ -180,7 +181,7 @@ function ProfileSettings() {
     return (
       <div className="card p-6">
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="animate-spin text-primary-500" size={32} />
+          <LoadingSpinner size="md" />
         </div>
       </div>
     )
@@ -372,7 +373,7 @@ function OrganizationSettings() {
     return (
       <div className="card p-6">
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="animate-spin text-primary-500" size={32} />
+          <LoadingSpinner size="md" />
         </div>
       </div>
     )
@@ -899,7 +900,7 @@ function BillingSettings() {
     return (
       <div className="card p-6">
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="animate-spin text-primary-500" size={32} />
+          <LoadingSpinner size="md" />
         </div>
       </div>
     )

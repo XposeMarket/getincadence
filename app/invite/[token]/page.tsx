@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2, UserPlus, AlertCircle } from 'lucide-react'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 interface InviteData {
   valid: boolean
@@ -89,8 +90,7 @@ export default function InviteSignupPage({ params }: { params: { token: string }
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-teal-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <Loader2 size={40} className="animate-spin text-primary-500 mx-auto mb-4" />
-          <p className="text-gray-600">Validating invitation...</p>
+          <LoadingSpinner size="lg" message="Validating invitation..." />
         </div>
       </div>
     )

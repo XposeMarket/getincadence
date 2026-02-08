@@ -12,6 +12,7 @@ import {
 import { formatActivityTime } from '@/lib/date-utils'
 import CreateTaskModal from '@/components/tasks/CreateTaskModal'
 import { format } from 'date-fns'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 interface Activity {
   id: string
@@ -478,7 +479,7 @@ export default function DashboardPage() {
       'Activity Feed',
       loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+          <LoadingSpinner size="md" />
         </div>
       ) : activities.length > 0 ? (
         <div className="divide-y divide-gray-100">

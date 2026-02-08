@@ -6,6 +6,7 @@ import { getCurrentUserOrgId } from '@/lib/org-helpers'
 import { Plus, Search, Filter } from 'lucide-react'
 import CompaniesTable from '@/components/companies/CompaniesTable'
 import CreateCompanyModal from '@/components/companies/CreateCompanyModal'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([])
@@ -58,7 +59,7 @@ export default function CompaniesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <LoadingSpinner size="md" />
       </div>
     )
   }

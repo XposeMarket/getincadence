@@ -6,9 +6,10 @@ import { getCurrentUserOrgId } from '@/lib/org-helpers'
 import Link from 'next/link'
 import { 
   AlertTriangle, DollarSign, Building2, User, 
-  Calendar, CheckSquare, Clock, Handshake, Loader2
+  Calendar, CheckSquare, Clock, Handshake
 } from 'lucide-react'
 import { format, addDays, startOfDay, endOfWeek } from 'date-fns'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 interface Deal {
   id: string
@@ -182,7 +183,7 @@ export default function PlannerPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-primary-500" size={32} />
+          <LoadingSpinner size="lg" />
         </div>
       ) : !hasItems ? (
         <div className="card p-12 text-center">

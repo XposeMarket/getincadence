@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getCurrentUserOrgId } from '@/lib/org-helpers'
 import { Zap, Play, Pause, Clock, CheckSquare, UserPlus, Handshake, TrendingUp, Trophy, XCircle, AlertCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 interface AutomationLog {
   id: string
@@ -258,7 +259,7 @@ export default function AutomationsPage() {
         
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+            <LoadingSpinner size="md" />
           </div>
         ) : logs.length > 0 ? (
           <div className="divide-y divide-gray-100">
