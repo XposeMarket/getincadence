@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
           email: user.email,
           fullName: user.user_metadata?.full_name || '',
           orgName: user.user_metadata?.org_name || 'My Organization',
+          industryType: user.user_metadata?.industry_type || 'default',
         }),
       })
 

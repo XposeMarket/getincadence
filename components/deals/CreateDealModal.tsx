@@ -73,15 +73,25 @@ export default function CreateDealModal({ pipelineId, stages, onClose, onCreated
     const init = async () => {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setCurrentUserId(user.id)
-        setOwnerId(user.id) // Default owner to current user
-      }
-
+      
       const id = await getCurrentUserOrgId()
       setOrgId(id)
       if (id) {
         loadRelatedData(id)
+        
+        // Verify user exists in users table before setting as owner
+        if (user) {
+          const { data: userRecord } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', user.id)
+            .single()
+          
+          if (userRecord) {
+            setCurrentUserId(user.id)
+            setOwnerId(user.id)
+          }
+        }
       }
     }
     init()

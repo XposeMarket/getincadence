@@ -606,7 +606,7 @@ interface EditDealModalProps {
 
 function EditDealModal({ deal, stages, contacts, companies, onClose, onSaved }: EditDealModalProps) {
   const { terminology, config } = useIndustry()
-  const isPhotographer = config.type === 'photographer'
+  const isPhotographer = config.id === 'photographer'
   
   const [name, setName] = useState(deal.name)
   const [amount, setAmount] = useState(deal.amount?.toString() || '')
