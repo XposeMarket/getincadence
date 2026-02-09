@@ -16,6 +16,7 @@ import {
   X,
   MessageSquarePlus,
   Lock,
+  BookOpen,
   LucideIcon
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -62,6 +63,7 @@ function getNavigation(terminology: ReturnType<typeof getTerminology>): NavItem[
 const secondaryNav: NavItem[] = [
   { name: 'Automations', href: '/automations', icon: Zap, adminOnly: true },
   { name: 'Feedback', href: '/feedback', icon: MessageSquarePlus },
+  { name: 'Blog', href: '/blog', icon: BookOpen },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 

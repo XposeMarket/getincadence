@@ -19,6 +19,7 @@ export default function MarketingLayout({
     { href: '/features-planner', label: 'Planner' },
     { href: '/features-automations', label: 'Automations' },
     { href: '/pricing', label: 'Pricing' },
+    { href: '/blog', label: 'Blog' },
     { href: '/faq', label: 'FAQ' },
   ]
 
