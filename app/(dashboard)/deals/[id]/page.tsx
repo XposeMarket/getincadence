@@ -95,6 +95,8 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [stageConfirmation, setStageConfirmation] = useState<{ stageId: string; stageName: string } | null>(null)
   const [showSuggestedTasks, setShowSuggestedTasks] = useState(false)
   const [creatingSuggestedTask, setCreatingSuggestedTask] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [orgId, setOrgId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -176,7 +178,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   }
 
   const handleDelete = async () => {
-    if (!confirm('Delete this deal?')) return
+    setDeleting(true)
     await supabase.from('deals').delete().eq('id', params.id)
     router.push('/deals')
   }
@@ -289,7 +291,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             <Edit2 size={16} className="sm:mr-2" />
             <span className="hidden sm:inline">Edit</span>
           </button>
-          <button onClick={handleDelete} className="btn btn-ghost text-red-600 hover:bg-red-50">
+          <button onClick={() => setShowDeleteConfirm(true)} className="btn btn-ghost text-red-600 hover:bg-red-50">
             <Trash2 size={16} />
           </button>
         </div>
@@ -597,6 +599,30 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-6">
                 <button onClick={() => setStageConfirmation(null)} className="btn btn-secondary">Cancel</button>
                 <button onClick={confirmStageChange} className="btn btn-primary">Confirm</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-slide-up">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Delete {terminology.deal}</h2>
+              <button onClick={() => setShowDeleteConfirm(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 sm:p-6">
+              <p className="text-gray-600">
+                Are you sure you want to delete <strong>{deal.name}</strong>? This action cannot be undone.
+              </p>
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-6">
+                <button onClick={() => setShowDeleteConfirm(false)} className="btn btn-secondary" disabled={deleting}>Cancel</button>
+                <button onClick={handleDelete} disabled={deleting} className="btn bg-red-600 text-white hover:bg-red-700">
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
               </div>
             </div>
           </div>
