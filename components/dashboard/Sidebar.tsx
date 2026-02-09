@@ -126,7 +126,7 @@ export default function Sidebar({ user, isOpen = true, onClose }: SidebarProps) 
       </div>
 
       {/* Primary navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
         {filteredNavigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
           return (
