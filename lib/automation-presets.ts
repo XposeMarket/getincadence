@@ -213,6 +213,31 @@ const GLOBAL_PRESETS: AutomationPreset[] = [
     }
   },
   {
+    preset_id: 'deal_idle_followup',
+    name: 'Idle Deal Follow-Up',
+    description: 'Automatically creates a follow-up task when a deal has no activity for 7 days',
+    trigger_type: 'deal_idle_7_days',
+    trigger_config: {},
+    actions: [
+      {
+        type: 'create_task',
+        config: {
+          title_template: 'Follow up on {{dealName}}',
+          description_template: 'This deal has had no activity for 7 days. Reach out to keep momentum going.',
+          due_days: 1,
+          priority: 'high'
+        }
+      }
+    ],
+    target: 'all',
+    default_enabled: true,
+    display: {
+      icon: 'Clock',
+      color: 'text-amber-600',
+      bg_color: 'bg-amber-100'
+    }
+  },
+  {
     preset_id: 'deal_lost_reason',
     name: 'Deal Lost Reason',
     description: 'Captures why deals are lost so you can learn and improve over time',

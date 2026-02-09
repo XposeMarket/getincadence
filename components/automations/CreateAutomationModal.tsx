@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getCurrentUserOrgId } from '@/lib/org-helpers'
 import {
   X, Loader2, ChevronRight, ChevronLeft, Zap,
-  UserPlus, Handshake, ArrowRightLeft
+  UserPlus, Handshake, ArrowRightLeft, Clock
 } from 'lucide-react'
 
 // ============================================
@@ -63,6 +63,14 @@ const TRIGGERS = [
     icon: ArrowRightLeft,
     color: 'text-purple-600',
     bg: 'bg-purple-50',
+  },
+  {
+    type: 'deal_idle_7_days',
+    label: 'No activity for 7 days',
+    description: 'Runs when a deal has no activity for 7 days',
+    icon: Clock,
+    color: 'text-amber-600',
+    bg: 'bg-amber-50',
   },
 ]
 

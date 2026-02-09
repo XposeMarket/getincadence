@@ -206,6 +206,11 @@ export default function DashboardPage() {
     setOverdueTasksList(overdueTasksListLocal)
     setDueTodayTomorrowList(dueTodayTomorrowRes.data || [])
 
+    // Fire idle-deal automation check if there are idle deals (fire-and-forget)
+    if (noActivityList.length > 0) {
+      fetch('/api/automations/check-idle', { method: 'POST' }).catch(() => {})
+    }
+
     setLoading(false)
   }
 

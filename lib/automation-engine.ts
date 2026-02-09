@@ -433,6 +433,142 @@ export async function onDealStageChanged(context: {
 }
 
 /**
+ * Trigger: Deal Idle 7 Days (time-based)
+ * Called from a cron/check endpoint. Finds idle deals per org
+ * and runs matching 'deal_idle_7_days' automations.
+ * Accepts a server Supabase client so it can run without cookies.
+ */
+export async function onDealIdle7Days(
+  serverSupabase: any,
+  orgId: string
+): Promise<{ dealsChecked: number; tasksCreated: number }> {
+  // 1. Get active automations of this type for the org
+  const { data: automations } = await serverSupabase
+    .from('automations')
+    .select('id, name, trigger_type, trigger_config, conditions, actions, is_active')
+    .eq('org_id', orgId)
+    .eq('trigger_type', 'deal_idle_7_days')
+    .eq('is_active', true)
+
+  if (!automations || automations.length === 0) {
+    return { dealsChecked: 0, tasksCreated: 0 }
+  }
+
+  // 2. Get all open deals for this org (exclude won/lost)
+  const { data: deals } = await serverSupabase
+    .from('deals')
+    .select('id, title, amount, contact_id, company_id, contacts(name), companies(name)')
+    .eq('org_id', orgId)
+
+  if (!deals || deals.length === 0) {
+    return { dealsChecked: 0, tasksCreated: 0 }
+  }
+
+  // 3. Get activities from the last 7 days
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentActivities } = await serverSupabase
+    .from('activities')
+    .select('deal_id')
+    .eq('org_id', orgId)
+    .gte('created_at', sevenDaysAgo)
+
+  const activeDealIds = new Set(
+    (recentActivities || []).map((a: any) => a.deal_id).filter(Boolean)
+  )
+
+  // 4. Filter to idle deals (no activity in 7 days)
+  const idleDeals = deals.filter((d: any) => !activeDealIds.has(d.id))
+
+  let totalTasksCreated = 0
+
+  for (const deal of idleDeals) {
+    const ctx: AutomationContext = {
+      dealId: deal.id,
+      dealName: deal.title || 'Deal',
+      dealAmount: deal.amount,
+      contactName: deal.contacts?.name,
+      companyName: deal.companies?.name,
+      contactId: deal.contact_id,
+      companyId: deal.company_id,
+    }
+
+    for (const auto of automations as DBAutomation[]) {
+      if (!matchesConditions(auto.conditions || [], ctx)) continue
+
+      // Dedup: check logs for same automation + deal in last 7 days (not 5 min — weekly check)
+      const { data: existingLog } = await serverSupabase
+        .from('automation_logs')
+        .select('id')
+        .eq('automation_type', auto.id)
+        .eq('trigger_entity_id', deal.id)
+        .eq('org_id', orgId)
+        .gte('created_at', sevenDaysAgo)
+        .limit(1)
+
+      if (existingLog && existingLog.length > 0) continue
+
+      // Execute actions using server client context
+      const supabase = serverSupabase
+      for (const action of auto.actions) {
+        if (action.type === 'create_task') {
+          const title = interpolateTemplate(action.config.title_template, ctx)
+          const description = action.config.description_template
+            ? interpolateTemplate(action.config.description_template, ctx)
+            : ''
+          const dueDate = calculateDueDate(action.config.due_days, action.config.due_hours)
+
+          const { error } = await supabase.from('tasks').insert({
+            title,
+            description,
+            due_date: dueDate,
+            priority: action.config.priority || 'normal',
+            status: 'open',
+            deal_id: deal.id,
+            contact_id: deal.contact_id || null,
+            org_id: orgId,
+            metadata: {
+              automated: true,
+              automation_source: auto.name,
+              automation_id: auto.id,
+            },
+          })
+
+          if (!error) totalTasksCreated++
+        }
+      }
+
+      // Update execution count
+      try {
+        const { data: current } = await supabase
+          .from('automations')
+          .select('execution_count')
+          .eq('id', auto.id)
+          .single()
+        const newCount = (current?.execution_count || 0) + 1
+        await supabase
+          .from('automations')
+          .update({ execution_count: newCount, last_executed_at: new Date().toISOString() })
+          .eq('id', auto.id)
+      } catch {}
+
+      // Log
+      try {
+        await supabase.from('automation_logs').insert({
+          automation_type: auto.id,
+          trigger_entity_type: 'deal',
+          trigger_entity_id: deal.id,
+          status: 'success',
+          result: { tasksCreated: 1 },
+          org_id: orgId,
+        })
+      } catch {}
+    }
+  }
+
+  return { dealsChecked: idleDeals.length, tasksCreated: totalTasksCreated }
+}
+
+/**
  * Helper: Create revisit task for lost deal (called after user provides reason)
  * This still runs directly — it's triggered by user action, not a DB automation
  */

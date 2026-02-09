@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate trigger type
-    const ALLOWED_TRIGGERS = ['contact_created', 'deal_created', 'deal_stage_changed']
+    const ALLOWED_TRIGGERS = ['contact_created', 'deal_created', 'deal_stage_changed', 'deal_idle_7_days']
     if (!ALLOWED_TRIGGERS.includes(trigger_type)) {
       return NextResponse.json({ error: 'Invalid trigger type' }, { status: 400 })
     }

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/automations/check-idle",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

@@ -21,7 +21,7 @@ import CreateAutomationModal from '@/components/automations/CreateAutomationModa
 // ============================================
 const ICON_MAP: Record<string, any> = {
   UserPlus, Handshake, TrendingUp, Trophy, XCircle,
-  Calendar, ImageIcon, MessageSquare, Heart, Briefcase, FileText, Zap
+  Calendar, ImageIcon, MessageSquare, Heart, Briefcase, FileText, Zap, Clock
 }
 
 function resolveIcon(name: string) {
@@ -35,6 +35,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   contact_created: 'Contact created',
   deal_created: 'Deal created',
   deal_stage_changed: 'Deal stage changed',
+  deal_idle_7_days: 'No activity for 7 days',
 }
 
 function getTriggerLabel(triggerType: string, triggerConfig: Record<string, any>): string {
