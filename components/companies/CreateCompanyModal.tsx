@@ -48,6 +48,19 @@ export default function CreateCompanyModal({ onClose, onCreated }: CreateCompany
     setLoading(true)
     setError(null)
 
+    // Server-side free tier limit check
+    try {
+      const limitsRes = await fetch('/api/usage-limits')
+      if (limitsRes.ok) {
+        const limits = await limitsRes.json()
+        if (limits.companies?.atLimit) {
+          setError('You\'ve reached the free plan limit of 5 companies. Upgrade to add more.')
+          setLoading(false)
+          return
+        }
+      }
+    } catch {}
+
     const { data: newCompany, error: insertError } = await supabase
       .from('companies')
       .insert({

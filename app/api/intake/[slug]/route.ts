@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { FREE_TIER_LIMITS, isFreeTier } from '@/lib/subscription/free-tier-limits'
 
 const BUDGET_RANGES = [
   'Under $500',
@@ -58,6 +59,74 @@ export async function POST(
         { status: 404 }
       )
     }
+
+    // --- Free Tier Capacity Checks ---
+    // Check org's subscription plan
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('plan')
+      .eq('org_id', org.id)
+      .single()
+
+    const plan = subscription?.plan || 'solo'
+
+    if (isFreeTier(plan)) {
+      // Check monthly submission limit
+      const now = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      const { count: monthlySubCount } = await supabase
+        .from('deals')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', org.id)
+        .eq('source', 'intake_form')
+        .gte('created_at', monthStart)
+
+      if ((monthlySubCount || 0) >= FREE_TIER_LIMITS.monthlySubmissions) {
+        return NextResponse.json(
+          { error: 'monthly_limit', message: 'This form has reached its monthly submission limit. Please try again next month or contact the business directly.' },
+          { status: 429 }
+        )
+      }
+
+      // Check active deals limit
+      const { data: closedStages } = await supabase
+        .from('pipeline_stages')
+        .select('id')
+        .or('is_won.eq.true,is_lost.eq.true')
+
+      const closedStageIds = (closedStages || []).map(s => s.id)
+
+      let activeDealCount = 0
+      if (closedStageIds.length > 0) {
+        const { count: totalDeals } = await supabase
+          .from('deals')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', org.id)
+
+        const { count: closedDeals } = await supabase
+          .from('deals')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', org.id)
+          .in('stage_id', closedStageIds)
+
+        activeDealCount = (totalDeals || 0) - (closedDeals || 0)
+      } else {
+        const { count: totalDeals } = await supabase
+          .from('deals')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', org.id)
+
+        activeDealCount = totalDeals || 0
+      }
+
+      if (activeDealCount >= FREE_TIER_LIMITS.activeDeals) {
+        return NextResponse.json(
+          { error: 'capacity_limit', message: 'This business is currently not accepting new inquiries through this form. Please contact them directly.' },
+          { status: 429 }
+        )
+      }
+    }
+    // --- End Free Tier Checks ---
 
     // Split name into first and last
     const nameParts = name.trim().split(/\s+/)

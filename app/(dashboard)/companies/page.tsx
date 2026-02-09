@@ -7,6 +7,8 @@ import { Plus, Search, Filter } from 'lucide-react'
 import CompaniesTable from '@/components/companies/CompaniesTable'
 import CreateCompanyModal from '@/components/companies/CreateCompanyModal'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import UpgradeCTA, { UpgradeButton } from '@/components/shared/UpgradeCTA'
+import { useUsageLimits } from '@/lib/contexts/UsageLimitsContext'
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([])
@@ -15,6 +17,7 @@ export default function CompaniesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [orgId, setOrgId] = useState<string | null>(null)
   const supabase = createClient()
+  const { companies: companyLimits, refresh: refreshLimits } = useUsageLimits()
 
   useEffect(() => {
     const initOrg = async () => {
@@ -72,11 +75,20 @@ export default function CompaniesPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Companies</h1>
           <p className="text-sm text-gray-500 mt-0.5">{companies.length} total companies</p>
         </div>
-        <button onClick={() => setShowCreateModal(true)} className="btn btn-primary w-full sm:w-auto">
-          <Plus size={18} className="mr-2" />
-          Add Company
-        </button>
+        {companyLimits.atLimit ? (
+          <UpgradeButton resource="companies" />
+        ) : (
+          <button onClick={() => setShowCreateModal(true)} className="btn btn-primary w-full sm:w-auto">
+            <Plus size={18} className="mr-2" />
+            Add Company
+          </button>
+        )}
       </div>
+
+      {/* Limit Warning */}
+      {companyLimits.atLimit && (
+        <UpgradeCTA resource="companies" current={companyLimits.current} max={companyLimits.max} />
+      )}
 
       {/* Search & Filter */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -107,6 +119,7 @@ export default function CompaniesPage() {
           onCreated={() => {
             setShowCreateModal(false)
             loadCompanies()
+            refreshLimits()
           }} 
         />
       )}

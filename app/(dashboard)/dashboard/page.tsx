@@ -13,6 +13,8 @@ import { formatActivityTime } from '@/lib/date-utils'
 import CreateTaskModal from '@/components/tasks/CreateTaskModal'
 import { format } from 'date-fns'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import { useUsageLimits } from '@/lib/contexts/UsageLimitsContext'
+import UpgradeCTA from '@/components/shared/UpgradeCTA'
 
 interface Activity {
   id: string
@@ -87,6 +89,7 @@ export default function DashboardPage() {
   
   const containerRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+  const { isFreeTier, historyDays } = useUsageLimits()
 
   useEffect(() => {
     const saved = localStorage.getItem('cadence-dashboard-layout-v3')
@@ -144,6 +147,12 @@ export default function DashboardPage() {
       .eq('org_id', orgId)
       .order('created_at', { ascending: false })
       .limit(50)
+
+    // Free tier: limit activity history to 30 days
+    if (isFreeTier && historyDays) {
+      const cutoff = new Date(Date.now() - historyDays * 24 * 60 * 60 * 1000).toISOString()
+      activityQuery = activityQuery.gte('created_at', cutoff)
+    }
 
     if (filter === 'contacts') {
       activityQuery = activityQuery.or('activity_type.eq.contact_created,activity_type.eq.contact_updated')
@@ -512,6 +521,11 @@ export default function DashboardPage() {
               </div>
             )
           })}
+          {isFreeTier && historyDays && (
+            <div className="px-4 py-3">
+              <UpgradeCTA resource="historyDays" variant="inline" />
+            </div>
+          )}
         </div>
       ) : (
         <div className="py-12 text-center">

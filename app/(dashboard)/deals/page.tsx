@@ -9,9 +9,11 @@ import DealsTable from '@/components/deals/DealsTable'
 import CreateDealModal from '@/components/deals/CreateDealModal'
 import DealLostReasonModal from '@/components/deals/DealLostReasonModal'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import UpgradeCTA, { UpgradeButton } from '@/components/shared/UpgradeCTA'
 import { ActivityLogger } from '@/lib/activity-logger'
 import { onDealStageChanged } from '@/lib/automation-engine'
 import { useIndustry } from '@/lib/contexts/IndustryContext'
+import { useUsageLimits } from '@/lib/contexts/UsageLimitsContext'
 
 interface PipelineStage {
   id: string
@@ -72,6 +74,7 @@ export default function DealsPage() {
   const [automationToast, setAutomationToast] = useState<AutomationToast>({ message: '', visible: false })
   const supabase = createClient()
   const { terminology } = useIndustry()
+  const { activeDeals: dealLimits, refresh: refreshLimits } = useUsageLimits()
 
   useEffect(() => {
     const initOrg = async () => {
@@ -275,6 +278,7 @@ export default function DealsPage() {
   const handleDealCreated = () => {
     setShowCreateModal(false)
     loadStagesAndDeals()
+    refreshLimits()
   }
 
   const handleLostReasonSaved = () => {
@@ -325,15 +329,24 @@ export default function DealsPage() {
             {filteredDeals.length} {terminology.deals.toLowerCase()} · ${totalValue.toLocaleString()} total value
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="btn btn-primary w-full sm:w-auto"
-          disabled={stages.length === 0}
-        >
-          <Plus size={18} className="mr-2" />
-          Add {terminology.deal}
-        </button>
+        {dealLimits.atLimit ? (
+          <UpgradeButton resource="activeDeals" />
+        ) : (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="btn btn-primary w-full sm:w-auto"
+            disabled={stages.length === 0}
+          >
+            <Plus size={18} className="mr-2" />
+            Add {terminology.deal}
+          </button>
+        )}
       </div>
+
+      {/* Limit Warning */}
+      {dealLimits.atLimit && (
+        <UpgradeCTA resource="activeDeals" current={dealLimits.current} max={dealLimits.max} />
+      )}
 
       {/* Filters & View Toggle */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">

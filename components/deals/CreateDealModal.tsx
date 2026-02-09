@@ -138,6 +138,19 @@ export default function CreateDealModal({ pipelineId, stages, onClose, onCreated
     setLoading(true)
     setError(null)
 
+    // Server-side free tier limit check
+    try {
+      const limitsRes = await fetch('/api/usage-limits')
+      if (limitsRes.ok) {
+        const limits = await limitsRes.json()
+        if (limits.activeDeals?.atLimit) {
+          setError('You\'ve reached the free plan limit of 10 active deals. Close existing deals or upgrade to create more.')
+          setLoading(false)
+          return
+        }
+      }
+    } catch {}
+
     const { data: newDeal, error: insertError } = await supabase
       .from('deals')
       .insert({

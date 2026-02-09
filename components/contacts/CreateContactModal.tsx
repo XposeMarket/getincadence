@@ -67,6 +67,19 @@ export default function CreateContactModal({ onClose, onCreated, prefillCompanyI
     setLoading(true)
     setError(null)
 
+    // Server-side free tier limit check
+    try {
+      const limitsRes = await fetch('/api/usage-limits')
+      if (limitsRes.ok) {
+        const limits = await limitsRes.json()
+        if (limits.contacts?.atLimit) {
+          setError('You\'ve reached the free plan limit of 25 contacts. Upgrade to add more.')
+          setLoading(false)
+          return
+        }
+      }
+    } catch {}
+
     const { data: newContact, error: insertError } = await supabase
       .from('contacts')
       .insert({

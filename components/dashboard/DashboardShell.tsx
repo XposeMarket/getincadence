@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Sidebar from '@/components/dashboard/Sidebar'
 import Header from '@/components/dashboard/Header'
 import { IndustryProvider } from '@/lib/contexts/IndustryContext'
+import { UsageLimitsProvider } from '@/lib/contexts/UsageLimitsContext'
 import { IndustryType } from '@/lib/industry-config'
 
 interface DashboardShellProps {
@@ -27,6 +28,7 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
 
   return (
     <IndustryProvider industryType={industryType}>
+    <UsageLimitsProvider>
       <div className="h-screen flex bg-gray-50 print:h-auto print:bg-white print:block">
         <div className="print:hidden">
           <Sidebar 
@@ -47,6 +49,7 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
           </main>
         </div>
       </div>
+    </UsageLimitsProvider>
     </IndustryProvider>
   )
 }

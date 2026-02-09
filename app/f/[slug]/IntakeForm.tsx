@@ -26,6 +26,7 @@ export default function IntakeForm({ org, slug }: IntakeFormProps) {
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [capacityPaused, setCapacityPaused] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -48,6 +49,11 @@ export default function IntakeForm({ org, slug }: IntakeFormProps) {
 
       if (!res.ok) {
         const data = await res.json()
+        // Handle capacity-related pauses with a friendly message
+        if (res.status === 429 || data.error === 'monthly_limit' || data.error === 'capacity_limit') {
+          setCapacityPaused(true)
+          return
+        }
         throw new Error(data.error || 'Something went wrong')
       }
 
@@ -92,6 +98,45 @@ export default function IntakeForm({ org, slug }: IntakeFormProps) {
             </h2>
             <p className="text-gray-500 text-sm">
               Your inquiry has been submitted to {org.name}. We&apos;ll review it and get back to you shortly.
+            </p>
+          </div>
+
+          <p className="text-xs text-gray-400 mt-6">
+            Powered by <span className="font-medium text-gray-500">Cadence</span>
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Capacity paused state — form submissions temporarily paused
+  if (capacityPaused) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="mb-8">
+            {org.logo_url ? (
+              <img
+                src={org.logo_url}
+                alt={org.name}
+                className="h-12 mx-auto mb-4 object-contain"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-teal-500 flex items-center justify-center text-white text-xl font-bold mx-auto mb-4">
+                {org.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={32} className="text-amber-600" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Submissions paused
+            </h2>
+            <p className="text-gray-500 text-sm">
+              {org.name} isn&apos;t accepting new inquiries through this form right now. Please try again later or reach out to them directly.
             </p>
           </div>
 

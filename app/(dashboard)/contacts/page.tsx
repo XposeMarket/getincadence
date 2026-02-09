@@ -7,7 +7,9 @@ import { Plus, Search, Filter } from 'lucide-react'
 import ContactsTable from '@/components/contacts/ContactsTable'
 import CreateContactModal from '@/components/contacts/CreateContactModal'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import UpgradeCTA, { UpgradeButton } from '@/components/shared/UpgradeCTA'
 import { useIndustry } from '@/lib/contexts/IndustryContext'
+import { useUsageLimits } from '@/lib/contexts/UsageLimitsContext'
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<any[]>([])
@@ -17,6 +19,7 @@ export default function ContactsPage() {
   const [orgId, setOrgId] = useState<string | null>(null)
   const supabase = createClient()
   const { terminology } = useIndustry()
+  const { contacts: contactLimits, refresh: refreshLimits } = useUsageLimits()
 
   useEffect(() => {
     const initOrg = async () => {
@@ -78,11 +81,20 @@ export default function ContactsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{terminology.contacts}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{contacts.length} total {terminology.contacts.toLowerCase()}</p>
         </div>
-        <button onClick={() => setShowCreateModal(true)} className="btn btn-primary w-full sm:w-auto">
-          <Plus size={18} className="mr-2" />
-          Add {terminology.contact}
-        </button>
+        {contactLimits.atLimit ? (
+          <UpgradeButton resource="contacts" />
+        ) : (
+          <button onClick={() => setShowCreateModal(true)} className="btn btn-primary w-full sm:w-auto">
+            <Plus size={18} className="mr-2" />
+            Add {terminology.contact}
+          </button>
+        )}
       </div>
+
+      {/* Limit Warning */}
+      {contactLimits.atLimit && (
+        <UpgradeCTA resource="contacts" current={contactLimits.current} max={contactLimits.max} />
+      )}
 
       {/* Search & Filter */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -113,6 +125,7 @@ export default function ContactsPage() {
           onCreated={() => {
             setShowCreateModal(false)
             loadContacts()
+            refreshLimits()
           }} 
         />
       )}
