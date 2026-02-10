@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
   ArrowLeft, DollarSign, Calendar, Building2, Edit2, Trash2, 
-  Plus, CheckSquare, MessageSquare, Clock, X, UserCircle, MapPin, Users, Camera, Zap
+  Plus, CheckSquare, MessageSquare, Clock, X, UserCircle, MapPin, Users, Camera, Zap, Paperclip
 } from 'lucide-react'
 import { formatActivityTime, formatFullTimestamp } from '@/lib/date-utils'
 import CreateTaskModal from '@/components/tasks/CreateTaskModal'
@@ -15,6 +15,8 @@ import { ActivityLogger } from '@/lib/activity-logger'
 import { getSuggestedTasksForStage, SuggestedTask } from '@/lib/automation-engine'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import { useIndustry } from '@/lib/contexts/IndustryContext'
+import FilesList, { FileRecord } from '@/components/files/FilesList'
+import FileUploadModal from '@/components/files/FileUploadModal'
 
 interface PipelineStage {
   id: string
@@ -98,6 +100,10 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [orgId, setOrgId] = useState<string | null>(null)
+  const [files, setFiles] = useState<FileRecord[]>([])
+  const [filesLoading, setFilesLoading] = useState(true)
+  const [showFileUpload, setShowFileUpload] = useState(false)
+  const [showNewVersionUpload, setShowNewVersionUpload] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
   const { terminology, config } = useIndustry()
@@ -115,8 +121,23 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     if (orgId) {
       loadDeal()
       loadContactsAndCompanies()
+      loadFiles()
     }
   }, [params.id, orgId])
+
+  const loadFiles = async () => {
+    setFilesLoading(true)
+    try {
+      const res = await fetch(`/api/files?entity_type=deal&entity_id=${params.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setFiles(data.files || [])
+      }
+    } catch (err) {
+      console.error('Failed to load files:', err)
+    }
+    setFilesLoading(false)
+  }
 
   const loadDeal = async () => {
     if (!orgId) return
@@ -326,6 +347,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           <div className="flex flex-wrap gap-2 sm:gap-3">
             <button onClick={() => setShowTaskModal(true)} className="btn btn-secondary text-sm">
               <Plus size={16} className="mr-1 sm:mr-2" />Add {terminology.task}
+            </button>
+            <button onClick={() => setShowFileUpload(true)} className="btn btn-secondary text-sm">
+              <Paperclip size={16} className="mr-1 sm:mr-2" />Upload File
             </button>
           </div>
 
@@ -568,8 +592,53 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               </div>
             )}
           </div>
+
+          {/* Files */}
+          <div className="card">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Paperclip size={16} className="text-gray-400" />
+                  Files
+                  {files.length > 0 && <span className="text-sm font-normal text-gray-500">{files.length}</span>}
+                </h3>
+                <button onClick={() => setShowFileUpload(true)} className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+                  <Plus size={14} />
+                  Upload
+                </button>
+              </div>
+            </div>
+            <FilesList
+              files={files}
+              loading={filesLoading}
+              entityType="deal"
+              entityId={params.id}
+              onRefresh={loadFiles}
+              canUpload
+              onUploadClick={() => setShowFileUpload(true)}
+            />
+          </div>
         </div>
       </div>
+
+      {showFileUpload && (
+        <FileUploadModal
+          onClose={() => setShowFileUpload(false)}
+          onUploaded={() => { setShowFileUpload(false); loadFiles() }}
+          entityType="deal"
+          entityId={params.id}
+        />
+      )}
+
+      {showNewVersionUpload && (
+        <FileUploadModal
+          onClose={() => setShowNewVersionUpload(null)}
+          onUploaded={() => { setShowNewVersionUpload(null); loadFiles() }}
+          entityType="deal"
+          entityId={params.id}
+          versionOfFileId={showNewVersionUpload}
+        />
+      )}
 
       {showTaskModal && (
         <CreateTaskModal 

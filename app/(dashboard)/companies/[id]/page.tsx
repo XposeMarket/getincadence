@@ -7,12 +7,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
   ArrowLeft, Globe, Phone, MapPin, Edit2, Trash2, Plus,
-  Users, Handshake, CheckSquare, MessageSquare, Clock, Building2
+  Users, Handshake, CheckSquare, MessageSquare, Clock, Building2, Paperclip
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import ActivityTimeline from '@/components/shared/ActivityTimeline'
 import CreateTaskModal from '@/components/tasks/CreateTaskModal'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import FilesList, { FileRecord } from '@/components/files/FilesList'
 
 interface Company {
   id: string
@@ -77,6 +78,8 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [orgId, setOrgId] = useState<string | null>(null)
+  const [relatedFiles, setRelatedFiles] = useState<FileRecord[]>([])
+  const [filesLoading, setFilesLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
 
@@ -91,8 +94,23 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
   useEffect(() => {
     if (orgId) {
       loadCompany()
+      loadRelatedFiles()
     }
   }, [params.id, orgId])
+
+  const loadRelatedFiles = async () => {
+    setFilesLoading(true)
+    try {
+      const res = await fetch(`/api/files/related?company_id=${params.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setRelatedFiles(data.files || [])
+      }
+    } catch (err) {
+      console.error('Failed to load related files:', err)
+    }
+    setFilesLoading(false)
+  }
 
   const loadCompany = async () => {
     if (!orgId) return
@@ -225,6 +243,25 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                 })}
               </div>
             ) : <p className="text-sm text-gray-500">No deals yet</p>}
+          </div>
+
+          {/* Related Files */}
+          <div className="card">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Paperclip size={16} className="text-gray-400" />
+                Files
+                {relatedFiles.length > 0 && <span className="text-sm font-normal text-gray-500">{relatedFiles.length}</span>}
+              </h3>
+            </div>
+            <FilesList
+              files={relatedFiles}
+              loading={filesLoading}
+              entityType="company"
+              entityId={params.id}
+              onRefresh={loadRelatedFiles}
+              showSource
+            />
           </div>
         </div>
       </div>
