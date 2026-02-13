@@ -68,13 +68,13 @@ export function clusterLeads(
   const clusterCells: ScoredLead[][] = [];
   const remainingLeads: ScoredLead[] = [];
 
-  for (const [_, cellLeads] of cells) {
+  cells.forEach((cellLeads) => {
     if (cellLeads.length >= minClusterSize) {
       clusterCells.push(cellLeads);
     } else {
       remainingLeads.push(...cellLeads);
     }
-  }
+  });
 
   // Try to merge remaining leads into nearest cluster
   for (const lead of remainingLeads) {
